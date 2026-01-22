@@ -21,6 +21,4 @@ Builds:
     commit: v1.1
     gradle:
       - yes
-    scandelete:
-      - rust/target
     ndk: r26b
