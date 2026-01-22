@@ -1,0 +1,77 @@
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.compose'
+    id 'org.mozilla.rust-android-gradle.rust-android'
+}
+
+cargo {
+    module = "../rust"
+    libname = "supertonic_tts"
+    targets = ["arm64"]
+    profile = "release"
+}
+
+android {
+    namespace 'com.brahmadeo.supertonic.tts'
+    compileSdk 35
+    ndkVersion "26.1.10909125"
+
+    defaultConfig {
+        applicationId "com.brahmadeo.supertonic.tts"
+        minSdk 24
+        targetSdk 35
+        versionCode 2
+        versionName "1.1"
+        
+        ndk {
+            abiFilters "arm64-v8a"
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    kotlinOptions {
+        jvmTarget = '1.8'
+    }
+    buildFeatures {
+        compose true
+    }
+    packagingOptions {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+    buildFeatures {
+        aidl true
+    }
+}
+
+dependencies {
+    implementation 'androidx.core:core-ktx:1.12.0'
+    implementation 'androidx.appcompat:appcompat:1.6.1'
+    implementation 'com.google.android.material:material:1.11.0'
+    implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
+    implementation 'androidx.media:media:1.7.0'
+
+    // Compose Bridge & Material 3 Expressive
+    def composeBom = platform('androidx.compose:compose-bom:2024.02.00')
+    implementation composeBom
+    implementation 'androidx.activity:activity-compose:1.8.2'
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.ui:ui-tooling-preview'
+    // Explicitly requesting 1.4.0-alpha04 for Expressive support
+    implementation 'androidx.compose.material3:material3:1.4.0-alpha04'
+    implementation 'androidx.compose.material:material-icons-extended'
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.23.2'
+    
+    debugImplementation 'androidx.compose.ui:ui-tooling'
+}
