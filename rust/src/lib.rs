@@ -39,9 +39,12 @@ pub extern "system" fn Java_com_brahmadeo_supertonic_tts_SupertonicTTS_init(
     
     log::info!("Initializing Supertonic Engine with model path: {}", model_path);
 
-    if let Err(e) = ort::init().commit() {
-        log::error!("Failed to initialize ORT environment: {:?}", e);
-        return 0;
+    match ort::init().with_name("supertonic-tts").commit() {
+        Ok(_) => {},
+        Err(e) => {
+            log::error!("Failed to initialize ORT environment: {:?}", e);
+            return 0;
+        }
     }
 
     let tts = match load_text_to_speech(&model_path, false) {
