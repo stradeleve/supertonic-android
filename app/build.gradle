@@ -28,6 +28,7 @@ cargo {
     // 1. Try resolving from standard locations
     def candidatePaths = [
         "${home}/.cargo/bin",
+        "/home/vagrant/.cargo/bin", // Explicit F-Droid path
         "/usr/local/cargo/bin",
         "/usr/bin",
         "/usr/local/bin"
