@@ -16,16 +16,37 @@ cargo {
     profile = "release"
     pythonCommand = "python3"
 
-    // F-Droid Fix: Explicitly find rustc/cargo in ~/.cargo/bin if not in PATH
+    // F-Droid Fix: Robustly find rustc/cargo
     def home = System.getenv("HOME")
-    if (home != null) {
-        def cargoBin = new File(home, ".cargo/bin")
-        if (cargoBin.exists()) {
-            def cargoCmd = new File(cargoBin, "cargo")
-            def rustcCmd = new File(cargoBin, "rustc")
-            if (cargoCmd.exists()) cargoCommand = cargoCmd.absolutePath
-            if (rustcCmd.exists()) rustcCommand = rustcCmd.absolutePath
-        }
+    def path = System.getenv("PATH")
+    println "DEBUG: HOME=$home"
+    println "DEBUG: PATH=$path"
+    
+    def cargoBin = null
+    def rustcBin = null
+
+    // 1. Try resolving from standard locations
+    def candidatePaths = [
+        "${home}/.cargo/bin",
+        "/usr/local/cargo/bin",
+        "/usr/bin",
+        "/usr/local/bin"
+    ]
+    
+    for (String loc : candidatePaths) {
+        def cargo = new File(loc, "cargo")
+        def rustc = new File(loc, "rustc")
+        if (cargo.exists() && cargoBin == null) cargoBin = cargo.absolutePath
+        if (rustc.exists() && rustcBin == null) rustcBin = rustc.absolutePath
+    }
+
+    if (cargoBin != null) {
+        println "DEBUG: Found cargo at $cargoBin"
+        cargoCommand = cargoBin
+    }
+    if (rustcBin != null) {
+        println "DEBUG: Found rustc at $rustcBin"
+        rustcCommand = rustcBin
     }
 }
 
