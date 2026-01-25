@@ -5,7 +5,6 @@ License: GPL-3.0-only
 AuthorName: Brahmadeo
 SourceCode: https://github.com/DevGitPit/supertonic-android
 IssueTracker: https://github.com/DevGitPit/supertonic-android/issues
-Summary: Local AI Text-to-Speech using Supertonic ONNX
 
 RepoType: git
 Repo: https://github.com/DevGitPit/supertonic-android
@@ -41,3 +40,4 @@ AutoUpdateMode: Version
 UpdateCheckMode: Tags
 CurrentVersion: '1.2'
 CurrentVersionCode: 3
+
