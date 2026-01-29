@@ -23,6 +23,12 @@ class TextNormalizer {
             rulesList.add(Rule(Pattern.compile(regex, Pattern.CASE_INSENSITIVE), replacement))
         }
 
+        // RANGE NORMALIZATION (e.g. 10–15 years -> 10 to 15 years)
+        // Matches digits separated by en dash (–) or em dash (—)
+        addLambda("(\\d+)\\s*[–—]\\s*(\\d+)") { m ->
+            "${m.group(1)} to ${m.group(2)}"
+        }
+
         // SMART QUOTES NORMALIZATION (Priority: Highest)
         // Convert to ASCII to ensure engine compatibility
         addStr("[‘’]", "'")
