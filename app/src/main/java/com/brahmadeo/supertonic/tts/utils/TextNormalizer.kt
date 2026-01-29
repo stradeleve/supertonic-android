@@ -294,7 +294,8 @@ class TextNormalizer {
         val rawSentences = protectedText.split(pattern)
         
         val refinedSentences = mutableListOf<String>()
-        val MAX_LENGTH = 200
+        // 1. Increase the Split Threshold from 200 to 300
+        val MAX_LENGTH = 300
 
         for (raw in rawSentences) {
             if (raw.length <= MAX_LENGTH) {
@@ -310,7 +311,12 @@ class TextNormalizer {
                         currentPart.append(part)
                     } else {
                         if (currentPart.isNotEmpty()) {
-                            refinedSentences.add(currentPart.toString())
+                            // 2. Fix Comma-End Cutoffs: Replace trailing comma with period
+                            var chunk = currentPart.toString()
+                            if (chunk.trim().endsWith(",")) {
+                                chunk = chunk.trim().dropLast(1) + "."
+                            }
+                            refinedSentences.add(chunk)
                             currentPart.clear()
                         }
                         currentPart.append(part)
