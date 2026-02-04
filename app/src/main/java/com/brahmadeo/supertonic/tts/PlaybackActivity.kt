@@ -177,7 +177,7 @@ class PlaybackActivity : ComponentActivity() {
     private fun handlePlayPause() {
         try {
             if (isPlayingState.value) {
-                playbackService?.pause()
+                playbackService?.stop() // Or pause if implemented
             } else if (isServiceActiveState.value) {
                 playFromIndex(currentIndexState.intValue)
             } else {
@@ -273,8 +273,7 @@ class PlaybackActivity : ComponentActivity() {
         super.onDestroy()
         if (isBound) {
             try {
-                // Do NOT clear listener here to avoid race condition with MainActivity taking over
-                // playbackService?.setListener(null)
+                playbackService?.setListener(null)
             } catch (e: RemoteException) { }
             unbindService(connection)
             isBound = false

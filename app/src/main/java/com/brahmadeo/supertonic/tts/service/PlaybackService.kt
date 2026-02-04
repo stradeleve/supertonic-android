@@ -76,28 +76,310 @@ class PlaybackService : Service(), SupertonicTTS.ProgressListener, AudioManager.
         }
     }
 
-    private val listeners = android.os.RemoteCallbackList<IPlaybackListener>()
+    private var listener: IPlaybackListener? = null
 
     fun setListener(listener: IPlaybackListener?) {
-        if (listener != null) {
-            listeners.register(listener)
-            // Immediately notify this specific listener of current state
-            try {
-                listener.onStateChanged(isPlaying, audioTrack != null || isSynthesizing, isSynthesizing)
-            } catch (e: RemoteException) { }
+        this.listener = listener
+        notifyListenerState(isPlaying)
+    }
+
+    private lateinit var mediaSession: MediaSessionCompat
+    private var audioTrack: AudioTrack? = null
+    @Volatile private var isPlaying = false
+    @Volatile private var isSynthesizing = false
+    private val textNormalizer = TextNormalizer()
+    private var resumeOnFocusGain = false
+    
+    private val serviceScope = CoroutineScope(Dispatchers.Main + Job())
+    private var wakeLock: android.os.PowerManager.WakeLock? = null
+    
+    private lateinit var audioManager: AudioManager
+    private var focusRequest: AudioFocusRequest? = null
+
+    private data class PlaybackItem(val index: Int, val data: ByteArray)
+
+    private var currentSentenceIndex: Int = 0
+
+    companion object {
+        const val CHANNEL_ID = "supertonic_playback"
+        const val NOTIFICATION_ID = 1
+        const val TAG = "PlaybackService"
+        const val VOLUME_BOOST_FACTOR = 2.5f
+    }
+
+    private fun applyVolumeBoost(pcmData: ByteArray, gain: Float): ByteArray {
+        if (gain == 1.0f) return pcmData
+        val size = pcmData.size
+        val boosted = ByteArray(size)
+        val inBuffer = ByteBuffer.wrap(pcmData).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val outBuffer = ByteBuffer.wrap(boosted).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val count = size / 2
+        for (i in 0 until count) {
+            val sample = inBuffer.get(i)
+            var scaled = (sample * gain).toInt()
+            if (scaled > 32767) scaled = 32767
+            if (scaled < -32768) scaled = -32768
+            outBuffer.put(i, scaled.toShort())
+        }
+        return boosted
+    }
+
+    override fun onBind(intent: Intent): IBinder {
+        return binder
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        createNotificationChannel()
+        com.brahmadeo.supertonic.tts.utils.LexiconManager.load(this)
+        com.brahmadeo.supertonic.tts.utils.QueueManager.initialize(this)
+
+        audioManager = getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val powerManager = getSystemService(Context.POWER_SERVICE) as android.os.PowerManager
+        wakeLock = powerManager.newWakeLock(android.os.PowerManager.PARTIAL_WAKE_LOCK, "Supertonic:PlaybackWakeLock")
+        
+        mediaSession = MediaSessionCompat(this, "SupertonicMediaSession").apply {
+            setFlags(MediaSessionCompat.FLAG_HANDLES_MEDIA_BUTTONS or MediaSessionCompat.FLAG_HANDLES_TRANSPORT_CONTROLS)
+            setCallback(object : MediaSessionCompat.Callback() {
+                override fun onPlay() { this@PlaybackService.play() }
+                override fun onPause() { this@PlaybackService.pause() }
+                override fun onStop() { this@PlaybackService.stopPlayback() }
+            })
+            isActive = true
+        }
+
+        val savedLang = getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).getString("selected_lang", "en") ?: "en"
+        val modelVersion = if (savedLang == "en") "v1" else "v2"
+        val modelPath = File(filesDir, "$modelVersion/onnx").absolutePath
+        val libPath = applicationInfo.nativeLibraryDir + "/libonnxruntime.so"
+        SupertonicTTS.initialize(modelPath, libPath)
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == "STOP_PLAYBACK") {
+            stopPlayback()
+        } else if (intent?.action == "RESET_ENGINE") {
+            SupertonicTTS.release()
+            val savedLang = getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).getString("selected_lang", "en") ?: "en"
+            val modelVersion = if (savedLang == "en") "v1" else "v2"
+            val modelPath = File(filesDir, "$modelVersion/onnx").absolutePath
+            val libPath = applicationInfo.nativeLibraryDir + "/libonnxruntime.so"
+            SupertonicTTS.initialize(modelPath, libPath)
+        }
+        return START_NOT_STICKY
+    }
+
+    fun isServiceActive(): Boolean {
+        return isPlaying || isSynthesizing
+    }
+
+    fun addToQueue(text: String, lang: String, stylePath: String, speed: Float, steps: Int, startIndex: Int) {
+        QueueManager.add(QueueItem(
+            text = text,
+            lang = lang,
+            stylePath = stylePath,
+            speed = speed,
+            steps = steps,
+            startIndex = startIndex
+        ))
+    }
+
+    private var synthesisJob: Job? = null
+
+    fun synthesizeAndPlay(text: String, lang: String, stylePath: String, speed: Float, steps: Int, startIndex: Int = 0) {
+        serviceScope.launch {
+            if (synthesisJob?.isActive == true) {
+                SupertonicTTS.setCancelled(true)
+                synthesisJob?.cancelAndJoin()
+            }
+            
+            stopPlayback(removeNotification = false)
+            
+            isSynthesizing = true
+            isPlaying = true
+            SupertonicTTS.setCancelled(false) 
+            
+            updatePlaybackState(PlaybackStateCompat.STATE_BUFFERING)
+            startForegroundService("Synthesizing...", false)
+            notifyListenerState(false)
+            
+            wakeLock?.acquire(10 * 60 * 1000L)
+            
+            if (!requestAudioFocus()) {
+                Log.w(TAG, "Audio Focus denied")
+            }
+
+            synthesisJob = launch(Dispatchers.IO) {
+                val sentences = textNormalizer.splitIntoSentences(text)
+                val totalSentences = sentences.size
+                
+                // Fix: If resume index is at the end, restart from beginning
+                var validStartIndex = startIndex
+                if (startIndex >= totalSentences && totalSentences > 0) {
+                    validStartIndex = 0
+                }
+
+                val channel = kotlinx.coroutines.channels.Channel<PlaybackItem>(2)
+
+                // Producer
+                launch {
+                    for (index in validStartIndex until totalSentences) {
+                        if (SupertonicTTS.isCancelled() || !isActive) break
+                        while (!isPlaying && isSynthesizing && isActive) {
+                            delay(100)
+                        }
+                        if (SupertonicTTS.isCancelled() || !isActive || !isSynthesizing) break
+
+                        val sentence = sentences[index]
+                        // Per-sentence granular detection
+                        // val sentenceLang = LanguageDetector.detect(sentence, lang)
+                        val sentenceLang = lang // Strict enforcement as per requirement
+                        val normalizedText = textNormalizer.normalize(sentence, sentenceLang)
+
+                        val audioData = SupertonicTTS.generateAudio(normalizedText, sentenceLang, stylePath, speed, 0.0f, steps, null)
+                        
+                        if (audioData != null && audioData.isNotEmpty()) {
+                            val boostedData = applyVolumeBoost(audioData, VOLUME_BOOST_FACTOR)
+                            channel.send(PlaybackItem(index, boostedData))
+                        }
+                    }
+                    channel.close()
+                }
+
+                // Consumer
+                for (item in channel) {
+                    if (SupertonicTTS.isCancelled() || !isActive || !isSynthesizing) break
+                    withContext(Dispatchers.Main) {
+                        currentSentenceIndex = item.index
+                        try {
+                            listener?.onProgress(item.index, totalSentences)
+                        } catch (e: RemoteException) { listener = null }
+                    }
+                    playAudioDataBlocking(item.data)
+                }
+                
+                withContext(Dispatchers.Main) {
+                    if (isSynthesizing && isActive) {
+                        isSynthesizing = false
+                        try {
+                            listener?.onProgress(totalSentences, totalSentences)
+                        } catch (e: RemoteException) { listener = null }
+                        notifyListenerState(true)
+
+                        // Check queue for next item
+                        val nextItem = QueueManager.next()
+                        if (nextItem != null) {
+                            SupertonicTTS.reset() // Explicit JNI Handshake
+                            synthesizeAndPlay(nextItem.text, nextItem.lang, nextItem.stylePath, nextItem.speed, nextItem.steps, nextItem.startIndex)
+                        } else {
+                            stopPlayback()
+                        }
+                    }
+                }
+            }
         }
     }
 
-    // ... (rest of class)
+    private suspend fun playAudioDataBlocking(data: ByteArray) {
+        if (!currentCoroutineContext().isActive) return
+        val rate = SupertonicTTS.getAudioSampleRate()
+        val minBufferSize = AudioTrack.getMinBufferSize(rate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT) * 4
+        val track = AudioTrack.Builder()
+            .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_MEDIA).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
+            .setAudioFormat(AudioFormat.Builder().setEncoding(AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate).setChannelMask(AudioFormat.CHANNEL_OUT_MONO).build())
+            .setBufferSizeInBytes(Math.max(minBufferSize, data.size))
+            .setTransferMode(AudioTrack.MODE_STATIC)
+            .build()
+            
+        audioTrack = track
+        track.write(data, 0, data.size)
+        
+        withContext(Dispatchers.Main) {
+            if (isPlaying) {
+                track.play()
+                notifyListenerState(true)
+                updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
+            }
+        }
+        
+        while (currentCoroutineContext().isActive && isSynthesizing) {
+            if (!isPlaying) {
+                if (track.playState == AudioTrack.PLAYSTATE_PLAYING) track.pause()
+                delay(100)
+                continue
+            } else {
+                if (track.playState == AudioTrack.PLAYSTATE_PAUSED || track.playState == AudioTrack.PLAYSTATE_STOPPED) track.play()
+            }
+            val head = track.playbackHeadPosition.toLong()
+            if (head >= data.size / 2) break
+            delay(50)
+        }
+        track.release()
+        audioTrack = null
+    }
+
+    override fun onProgress(sessionId: Long, current: Int, total: Int) {}
+    override fun onAudioChunk(sessionId: Long, data: ByteArray) {}
+
+    fun play() {
+        resumeOnFocusGain = false
+        if (!isPlaying) {
+            if (requestAudioFocus()) {
+                isPlaying = true
+                audioTrack?.play()
+                notifyListenerState(true)
+                updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
+                startForegroundService("Playing Audio", true)
+            }
+        }
+    }
+
+    fun pause() {
+        resumeOnFocusGain = false
+        if (isPlaying) {
+            isPlaying = false
+            audioTrack?.pause()
+            notifyListenerState(false)
+            updatePlaybackState(PlaybackStateCompat.STATE_PAUSED)
+            updateNotification("Paused", true)
+        }
+    }
+
+    fun stopPlayback(removeNotification: Boolean = true) {
+        try {
+            audioTrack?.stop()
+            audioTrack?.release()
+        } catch (e: Exception) { }
+        audioTrack = null
+        isPlaying = false
+        resumeOnFocusGain = false
+        notifyListenerState(false)
+        abandonAudioFocus()
+        if (wakeLock?.isHeld == true) wakeLock?.release()
+        if (removeNotification) {
+            try {
+                listener?.onPlaybackStopped()
+            } catch (e: RemoteException) { listener = null }
+            updatePlaybackState(PlaybackStateCompat.STATE_STOPPED)
+            stopForeground(true)
+        }
+    }
+
+    fun stopServicePlayback() {
+        serviceScope.launch {
+            SupertonicTTS.setCancelled(true)
+            synthesisJob?.cancelAndJoin()
+            isSynthesizing = false
+            stopPlayback()
+        }
+    }
 
     private fun notifyListenerState(playing: Boolean) {
-        val n = listeners.beginBroadcast()
-        for (i in 0 until n) {
-            try {
-                listeners.getBroadcastItem(i).onStateChanged(playing, audioTrack != null || isSynthesizing, isSynthesizing)
-            } catch (e: RemoteException) { }
+        try {
+            listener?.onStateChanged(playing, audioTrack != null || isSynthesizing, isSynthesizing)
+        } catch (e: RemoteException) {
+            listener = null
         }
-        listeners.finishBroadcast()
     }
 
     private fun requestAudioFocus(): Boolean {
