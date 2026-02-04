@@ -49,6 +49,7 @@ fun SupertonicTheme(
             // Safe cast, might be ContextWrapper in some edge cases but standard Activity usage fits
             val window = (view.context as? Activity)?.window
             window?.let {
+                @Suppress("DEPRECATION")
                 it.statusBarColor = colorScheme.primary.toArgb()
                 WindowCompat.getInsetsController(it, view).isAppearanceLightStatusBars = !darkTheme
             }

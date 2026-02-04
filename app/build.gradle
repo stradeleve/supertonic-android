@@ -83,7 +83,7 @@ tasks.whenTaskAdded { task ->
 
 android {
     namespace 'com.brahmadeo.supertonic.tts'
-    compileSdk 35
+    compileSdk 36
     ndkVersion "26.1.10909125"
 
     sourceSets {
@@ -95,7 +95,7 @@ android {
     defaultConfig {
         applicationId "com.brahmadeo.supertonic.tts"
         minSdk 24
-        targetSdk 35
+        targetSdk 36
         versionCode 4
         versionName "1.3"
         
