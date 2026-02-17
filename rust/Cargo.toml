@@ -3,6 +3,10 @@ name = "supertonic-tts"
 version = "0.1.0"
 edition = "2021"
 
+[features]
+default = []
+xnnpack = ["ort/xnnpack"]
+
 [dependencies]
 # ONNX Runtime
 ort = { version = "2.0.0-rc.11", features = ["load-dynamic", "ndarray", "xnnpack"] }
@@ -40,6 +44,7 @@ libc = "0.2"
 jni = "0.21"
 android_logger = "0.13"
 log = "0.4"
+once_cell = "1.19"
 
 [lib]
 name = "supertonic_tts"

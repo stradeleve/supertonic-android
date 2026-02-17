@@ -308,7 +308,7 @@ fun DropdownSelector(
             label = { Text(label) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier
-                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                .menuAnchor()
                 .fillMaxWidth()
         )
         ExposedDropdownMenu(

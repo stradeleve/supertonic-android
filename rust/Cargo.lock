@@ -938,6 +938,7 @@ dependencies = [
  "libc",
  "log",
  "ndarray",
+ "once_cell",
  "ort",
  "rand",
  "rand_distr",

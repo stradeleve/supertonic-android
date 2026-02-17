@@ -190,17 +190,12 @@ pub fn preprocess_text(text: &str, lang: &str) -> Result<String> {
 
     // If text doesn't end with punctuation, quotes, or closing brackets, add a period
     if !text.is_empty() {
-        let ends_with_punct = Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\\]}}…。」』】〉》›»]$"#).unwrap();
+        let ends_with_punct = Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\\]}…。」』】〉》›»]$"#).unwrap();
         if !ends_with_punct.is_match(&text) {
             text.push('.');
         }
     }
     }
-
-    // Validate language
-    // if !is_valid_lang(lang) {
-    //    bail!("Invalid language: {}. Available: {:?}", lang, AVAILABLE_LANGS);
-    // }
 
     // Wrap text with language tags - V2 needs tags, V1 (English) does not
     if lang != "en" {
@@ -537,9 +532,13 @@ pub fn sanitize_filename(text: &str, max_len: usize) -> String {
 // ============================================================================ 
 
 use ort::{
-    session::Session,
+    execution_providers::CPUExecutionProvider,
+    session::{builder::GraphOptimizationLevel, Session},
     value::Value,
 };
+
+#[cfg(feature = "xnnpack")]
+use ort::execution_providers::XNNPACKExecutionProvider;
 
 pub struct Style {
     pub ttl: Array3<f32>,
@@ -610,8 +609,8 @@ impl TextToSpeech {
             "text_mask" => &text_mask_value
         })?;
 
-        let (_, duration_data) = dp_outputs["duration"].try_extract_tensor::<f32>()?;
-        let mut duration: Vec<f32> = duration_data.to_vec();
+        let duration_data = dp_outputs["duration"].try_extract_tensor::<f32>()?;
+        let mut duration: Vec<f32> = duration_data.1.to_owned().to_vec();
         
         // Apply speed factor to duration
         for dur in duration.iter_mut() {
@@ -626,10 +625,11 @@ impl TextToSpeech {
             "text_mask" => &text_mask_value
         })?;
 
-        let (text_emb_shape, text_emb_data) = text_enc_outputs["text_emb"].try_extract_tensor::<f32>()?;
+        let text_emb_data = text_enc_outputs["text_emb"].try_extract_tensor::<f32>()?;
+        let text_emb_shape = text_emb_data.0;
         let text_emb = Array3::from_shape_vec(
             (text_emb_shape[0] as usize, text_emb_shape[1] as usize, text_emb_shape[2] as usize),
-            text_emb_data.to_vec()
+            text_emb_data.1.to_owned().to_vec()
         )?;
 
         // Sample noisy latent
@@ -665,10 +665,11 @@ impl TextToSpeech {
                 "total_step" => &total_step_value
             })?;
 
-            let (denoised_shape, denoised_data) = vector_est_outputs["denoised_latent"].try_extract_tensor::<f32>()?;
+            let denoised_data = vector_est_outputs["denoised_latent"].try_extract_tensor::<f32>()?;
+            let denoised_shape = denoised_data.0;
             xt = Array3::from_shape_vec(
                 (denoised_shape[0] as usize, denoised_shape[1] as usize, denoised_shape[2] as usize),
-                denoised_data.to_vec()
+                denoised_data.1.to_owned().to_vec()
             )?;
         }
 
@@ -678,8 +679,8 @@ impl TextToSpeech {
             "latent" => &final_latent_value
         })?;
 
-        let (_, wav_data) = vocoder_outputs["wav_tts"].try_extract_tensor::<f32>()?;
-        let wav: Vec<f32> = wav_data.to_vec();
+        let wav_data = vocoder_outputs["wav_tts"].try_extract_tensor::<f32>()?;
+        let wav: Vec<f32> = wav_data.1.to_owned().to_vec();
 
         Ok((wav, duration))
     }
@@ -757,34 +758,6 @@ impl TextToSpeech {
 // ============================================================================ 
 // Component Loading Functions
 // ============================================================================ 
-
-use ort::session::{Session, SessionBuilder};
-use ort::execution_providers::{CPUExecutionProvider, XNNPACKExecutionProvider};
-
-fn create_session(model_path: &str, use_xnnpack: bool, intra_threads: usize, xnn_threads: usize) -> Result<Session> {
-    let mut builder = Session::builder()?
-        .with_optimization_level(ort::session::GraphOptimizationLevel::Level3)?
-        // Battery/Thermal: Disable spinning to let threads park when idle
-        .with_config_entry("session.intra_op.allow_spinning", "0")?
-        .with_config_entry("session.inter_op.allow_spinning", "0")?
-        .with_intra_threads(intra_threads)?;
-
-    if use_xnnpack {
-        #[cfg(feature = "xnnpack")]
-        {
-            let xnn_threads_nz = std::num::NonZeroUsize::new(xnn_threads)
-                .unwrap_or(std::num::NonZeroUsize::new(1).unwrap());
-            builder = builder
-                .with_execution_providers([
-                    XNNPACKExecutionProvider::default()
-                        .with_intra_op_num_threads(xnn_threads_nz)
-                        .build(),
-                    CPUExecutionProvider::default().build(),
-                ])?;
-        }
-    }
-    builder.commit_from_file(model_path).context(format!("Failed to load model: {}", model_path))
-}
 
 /// Load voice style from JSON files
 pub fn load_voice_style(voice_style_paths: &[String], verbose: bool) -> Result<Style> {
@@ -869,12 +842,45 @@ pub fn load_and_mix_voice_styles(path1: &str, path2: &str, alpha: f32) -> Result
     Ok(Style { ttl, dp })
 }
 
+/// Create an ONNX session with the specified execution providers
+fn create_session(model_path: &str, use_xnnpack: bool, ort_threads: usize, xnn_threads: usize) -> Result<Session> {
+    let mut builder = Session::builder()?
+        .with_optimization_level(GraphOptimizationLevel::Level3)?
+        // OPTIMIZATION: Disable spinning to save battery and reduce heat on Android.
+        // This ensures that when one thread pool is idle (e.g., ORT pool while XNNPACK is working),
+        // it doesn't consume any CPU cycles.
+        .with_config_entry("session.intra_op.allow_spinning", "0")?
+        .with_config_entry("session.inter_op.allow_spinning", "0")?
+        .with_intra_threads(ort_threads)?;
+
+    if use_xnnpack {
+        #[cfg(feature = "xnnpack")]
+        {
+            let xnn_threads_nz = std::num::NonZeroUsize::new(xnn_threads).unwrap_or(std::num::NonZeroUsize::new(1).unwrap());
+            builder = builder
+                .with_execution_providers([
+                    XNNPACKExecutionProvider::default()
+                        .with_intra_op_num_threads(xnn_threads_nz)
+                        .build(),
+                    CPUExecutionProvider::default().build(),
+                ])?;
+        }
+    }
+
+    builder.commit_from_file(model_path).context(format!("Failed to load model: {}", model_path))
+}
+
 /// Load TTS components
-pub fn load_text_to_speech(onnx_dir: &str, use_gpu: bool, ort_threads: usize, xnn_threads: usize) -> Result<TextToSpeech> {
+pub fn load_text_to_speech(onnx_dir: &str, use_gpu: bool, use_xnnpack: bool, ort_threads: usize, xnn_threads: usize) -> Result<TextToSpeech> {
     if use_gpu {
         anyhow::bail!("GPU mode is not supported yet");
     }
-    println!("Using CPU for inference with {}|{} threads\n", ort_threads, xnn_threads);
+    
+    if use_xnnpack {
+        println!("Using XNNPACK ({}) with ORT ({}) threads\n", xnn_threads, ort_threads);
+    } else {
+        println!("Using CPU for inference with {} threads\n", ort_threads);
+    }
 
     let cfgs = load_cfgs(onnx_dir)?;
 
@@ -883,10 +889,10 @@ pub fn load_text_to_speech(onnx_dir: &str, use_gpu: bool, ort_threads: usize, xn
     let vector_est_path = format!("{}/vector_estimator.onnx", onnx_dir);
     let vocoder_path = format!("{}/vocoder.onnx", onnx_dir);
 
-    let dp_ort = create_session(&dp_path, false, ort_threads, xnn_threads)?;
-    let text_enc_ort = create_session(&text_enc_path, false, ort_threads, xnn_threads)?;
-    let vector_est_ort = create_session(&vector_est_path, true, ort_threads, xnn_threads)?;
-    let vocoder_ort = create_session(&vocoder_path, true, ort_threads, xnn_threads)?;
+    let dp_ort = create_session(&dp_path, use_xnnpack, ort_threads, xnn_threads)?;
+    let text_enc_ort = create_session(&text_enc_path, use_xnnpack, ort_threads, xnn_threads)?;
+    let vector_est_ort = create_session(&vector_est_path, use_xnnpack, ort_threads, xnn_threads)?;
+    let vocoder_ort = create_session(&vocoder_path, use_xnnpack, ort_threads, xnn_threads)?;
 
     let unicode_indexer_path = format!("{}/unicode_indexer.json", onnx_dir);
     let text_processor = UnicodeProcessor::new(&unicode_indexer_path)?;
