@@ -532,13 +532,12 @@ pub fn sanitize_filename(text: &str, max_len: usize) -> String {
 // ============================================================================ 
 
 use ort::{
-    execution_providers::CPUExecutionProvider,
     session::{builder::GraphOptimizationLevel, Session},
     value::Value,
 };
 
 #[cfg(feature = "xnnpack")]
-use ort::execution_providers::XNNPACKExecutionProvider;
+use ort::execution_providers::{CPUExecutionProvider, XNNPACKExecutionProvider};
 
 pub struct Style {
     pub ttl: Array3<f32>,
@@ -843,7 +842,8 @@ pub fn load_and_mix_voice_styles(path1: &str, path2: &str, alpha: f32) -> Result
 }
 
 /// Create an ONNX session with the specified execution providers
-fn create_session(model_path: &str, use_xnnpack: bool, ort_threads: usize, xnn_threads: usize) -> Result<Session> {
+fn create_session(model_path: &str, use_xnnpack: bool, ort_threads: usize, _xnn_threads: usize) -> Result<Session> {
+    #[allow(unused_mut)]
     let mut builder = Session::builder()?
         .with_optimization_level(GraphOptimizationLevel::Level3)?
         // OPTIMIZATION: Disable spinning to save battery and reduce heat on Android.
@@ -856,14 +856,21 @@ fn create_session(model_path: &str, use_xnnpack: bool, ort_threads: usize, xnn_t
     if use_xnnpack {
         #[cfg(feature = "xnnpack")]
         {
-            let xnn_threads_nz = std::num::NonZeroUsize::new(xnn_threads).unwrap_or(std::num::NonZeroUsize::MIN);
-            builder = builder
-                .with_execution_providers([
+            if let Some(xnn_threads_nz) = std::num::NonZeroUsize::new(_xnn_threads) {
+                builder = builder.with_execution_providers([
                     XNNPACKExecutionProvider::default()
                         .with_intra_op_num_threads(xnn_threads_nz)
                         .build(),
                     CPUExecutionProvider::default().build(),
                 ])?;
+            } else {
+                builder = builder.with_execution_providers([
+                    XNNPACKExecutionProvider::default()
+                        .with_intra_op_num_threads(std::num::NonZeroUsize::MIN)
+                        .build(),
+                    CPUExecutionProvider::default().build(),
+                ])?;
+            }
         }
     }
 
