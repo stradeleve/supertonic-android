@@ -133,6 +133,11 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == RESULT_OK) {
             val text = result.data?.getStringExtra(EbookOutlineActivity.EXTRA_TEXT)
             if (!text.isNullOrEmpty()) {
+                // Reset state before loading new ebook text
+                viewModel.inputText.value = ""
+                val stopIntent = Intent(this, PlaybackService::class.java).apply { action = "STOP_PLAYBACK" }
+                startService(stopIntent)
+                
                 viewModel.inputText.value = text
                 Toast.makeText(this, "Chapter loaded", Toast.LENGTH_SHORT).show()
             }
