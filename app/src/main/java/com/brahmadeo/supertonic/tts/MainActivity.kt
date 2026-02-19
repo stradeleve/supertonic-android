@@ -112,9 +112,16 @@ class MainActivity : ComponentActivity() {
     ) { }
 
     private val ebookLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
+        ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
+            try {
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to take persistable permission", e)
+            }
+            
             val intent = Intent(this, EbookOutlineActivity::class.java).apply {
                 putExtra(EbookOutlineActivity.EXTRA_URI, it.toString())
             }
@@ -348,7 +355,7 @@ class MainActivity : ComponentActivity() {
                         onDeleteV2Click = { viewModel.showV2DeleteDialog.value = true },
                         onOpenEbookClick = { 
                             if (EbookManager.getRecentBooks(this).isEmpty()) {
-                                ebookLauncher.launch("*/*")
+                                ebookLauncher.launch(arrayOf("application/epub+zip", "application/pdf"))
                             } else {
                                 startActivity(Intent(this, EbookLibraryActivity::class.java))
                             }

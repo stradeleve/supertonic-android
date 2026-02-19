@@ -52,31 +52,33 @@ class EbookParser(private val context: Context) {
                 return@withContext Result.failure<String>(Exception("This publication does not support content extraction."))
             }
 
-            val text = if (link == null) {
-                // Use the built-in text() method from the Content interface
-                content.text()
-            } else {
-                val chapterText = StringBuilder()
-                val elements = content.elements()
-                for (element in elements) {
-                    // Stop when we move to a different resource (next chapter)
-                    if (element.locator.href != link.url()) break
-                    
-                    if (element is Content.TextualElement) {
-                        val elementText = element.text
-                        if (elementText != null) {
-                            chapterText.append(elementText).append("\n\n")
-                        }
+            val chapterText = StringBuilder()
+            val elements = content.elements()
+            
+            val startHref = link?.url()?.toString()
+
+            for (element in elements) {
+                // If we provided a link, only extract elements matching its Href.
+                // We stop as soon as we hit a different Href.
+                if (startHref != null && element.locator.href.toString() != startHref) {
+                    break
+                }
+                
+                if (element is Content.TextualElement) {
+                    val elementText = element.text
+                    if (elementText != null && elementText.isNotBlank()) {
+                        chapterText.append(elementText).append("\n\n")
                     }
                 }
-                chapterText.toString()
             }
 
-            if (text == null || text.isBlank()) {
+            val resultText = chapterText.toString().trim()
+
+            if (resultText.isBlank()) {
                 return@withContext Result.failure<String>(Exception("No text content could be extracted."))
             }
 
-            Result.success(text)
+            Result.success(resultText)
         } catch (e: Exception) {
             Result.failure<String>(e)
         }

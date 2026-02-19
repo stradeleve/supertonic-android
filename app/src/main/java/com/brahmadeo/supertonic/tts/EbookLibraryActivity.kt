@@ -43,9 +43,15 @@ class EbookLibraryActivity : ComponentActivity() {
     }
 
     private val ebookPickerLauncher = registerForActivityResult(
-        ActivityResultContracts.GetContent()
+        ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
+            try {
+                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
+                contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
             openBook(it)
         }
     }
@@ -56,7 +62,7 @@ class EbookLibraryActivity : ComponentActivity() {
             SupertonicTheme {
                 LibraryScreen(
                     onBack = { finish() },
-                    onOpenNew = { ebookPickerLauncher.launch("*/*") },
+                    onOpenNew = { ebookPickerLauncher.launch(arrayOf("application/epub+zip", "application/pdf")) },
                     onBookClick = { openBook(Uri.parse(it.uri)) }
                 )
             }
