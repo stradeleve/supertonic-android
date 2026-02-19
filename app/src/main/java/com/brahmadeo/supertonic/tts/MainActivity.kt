@@ -44,6 +44,7 @@ import com.brahmadeo.supertonic.tts.viewmodel.MainViewModel
 import com.brahmadeo.supertonic.tts.ui.DownloadScreen
 import com.brahmadeo.supertonic.tts.utils.AssetManager
 import com.brahmadeo.supertonic.tts.utils.EbookParser
+import com.brahmadeo.supertonic.tts.utils.EbookManager
 
 class MainActivity : ComponentActivity() {
 
@@ -345,7 +346,13 @@ class MainActivity : ComponentActivity() {
                         onQueueClick = { startActivity(Intent(this, QueueActivity::class.java)) },
                         onLexiconClick = { startActivity(Intent(this, LexiconActivity::class.java)) },
                         onDeleteV2Click = { viewModel.showV2DeleteDialog.value = true },
-                        onOpenEbookClick = { ebookLauncher.launch("*/*") },
+                        onOpenEbookClick = { 
+                            if (EbookManager.getRecentBooks(this).isEmpty()) {
+                                ebookLauncher.launch("*/*")
+                            } else {
+                                startActivity(Intent(this, EbookLibraryActivity::class.java))
+                            }
+                        },
                         isV2Ready = AssetManager.isV2Ready(this),
 
                         showMiniPlayer = viewModel.showMiniPlayer.value,

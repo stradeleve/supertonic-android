@@ -60,6 +60,10 @@
             android:parentActivityName=".MainActivity"
             android:label="Ebook Chapters" />
 
+        <activity android:name=".EbookLibraryActivity"
+            android:parentActivityName=".MainActivity"
+            android:label="Ebook Library" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

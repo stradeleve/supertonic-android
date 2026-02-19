@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.brahmadeo.supertonic.tts.ui.theme.SupertonicTheme
+import com.brahmadeo.supertonic.tts.utils.EbookManager
 import com.brahmadeo.supertonic.tts.utils.EbookParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -78,6 +79,10 @@ class EbookOutlineActivity : ComponentActivity() {
             if (publication == null) {
                 Toast.makeText(this@EbookOutlineActivity, "Failed to open ebook", Toast.LENGTH_SHORT).show()
                 onBack()
+            } else {
+                // Save to recent books
+                val title = publication?.metadata?.title ?: "Unknown Title"
+                EbookManager.addBook(this@EbookOutlineActivity, title, ebookUri.toString())
             }
         }
 

@@ -53,13 +53,13 @@ class EbookParser(private val context: Context) {
             }
 
             val text = if (link == null) {
-                // Try getting whole text if no link is provided
-                content.elements().filterIsInstance<Content.TextualElement>().joinToString("\n") { it.text ?: "" }
+                // Use the built-in text() method from the Content interface
+                content.text()
             } else {
                 val chapterText = StringBuilder()
                 val elements = content.elements()
                 for (element in elements) {
-                    // If we moved to a different resource than the one we started with, stop.
+                    // Stop when we move to a different resource (next chapter)
                     if (element.locator.href != link.url()) break
                     
                     if (element is Content.TextualElement) {
@@ -72,7 +72,7 @@ class EbookParser(private val context: Context) {
                 chapterText.toString()
             }
 
-            if (text.isBlank()) {
+            if (text == null || text.isBlank()) {
                 return@withContext Result.failure<String>(Exception("No text content could be extracted."))
             }
 
