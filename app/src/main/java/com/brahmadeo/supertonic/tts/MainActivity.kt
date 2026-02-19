@@ -115,17 +115,15 @@ class MainActivity : ComponentActivity() {
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
-            try {
-                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                contentResolver.takePersistableUriPermission(it, takeFlags)
-            } catch (e: Exception) {
-                Log.e("MainActivity", "Failed to take persistable permission", e)
+            val localPath = EbookManager.importBook(this, it)
+            if (localPath != null) {
+                val intent = Intent(this, EbookOutlineActivity::class.java).apply {
+                    putExtra(EbookOutlineActivity.EXTRA_URI, localPath)
+                }
+                ebookOutlineLauncher.launch(intent)
+            } else {
+                Toast.makeText(this, "Failed to import book", Toast.LENGTH_SHORT).show()
             }
-            
-            val intent = Intent(this, EbookOutlineActivity::class.java).apply {
-                putExtra(EbookOutlineActivity.EXTRA_URI, it.toString())
-            }
-            ebookOutlineLauncher.launch(intent)
         }
     }
 

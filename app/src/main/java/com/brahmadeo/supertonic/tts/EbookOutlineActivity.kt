@@ -28,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Publication
+import java.io.File
 
 class EbookOutlineActivity : ComponentActivity() {
 
@@ -37,18 +38,18 @@ class EbookOutlineActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         ebookParser = EbookParser(this)
 
-        val ebookUriString = intent.getStringExtra(EXTRA_URI)
-        if (ebookUriString == null) {
+        val ebookPath = intent.getStringExtra(EXTRA_URI)
+        if (ebookPath == null) {
             finish()
             return
         }
 
-        val ebookUri = Uri.parse(ebookUriString)
+        val ebookFile = File(ebookPath)
 
         setContent {
             SupertonicTheme {
                 OutlineScreen(
-                    ebookUri = ebookUri,
+                    ebookFile = ebookFile,
                     onChapterSelected = { text ->
                         val resultIntent = Intent()
                         resultIntent.putExtra(EXTRA_TEXT, text)
@@ -64,7 +65,7 @@ class EbookOutlineActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     @Composable
     fun OutlineScreen(
-        ebookUri: Uri,
+        ebookFile: File,
         onChapterSelected: (String) -> Unit,
         onBack: () -> Unit
     ) {
@@ -72,8 +73,8 @@ class EbookOutlineActivity : ComponentActivity() {
         var isLoading by remember { mutableStateOf(true) }
         var isExtracting by remember { mutableStateOf(false) }
 
-        LaunchedEffect(ebookUri) {
-            val result = ebookParser.openPublication(ebookUri)
+        LaunchedEffect(ebookFile) {
+            val result = ebookParser.openPublication(ebookFile)
             publication = result.getOrNull()
             isLoading = false
             if (publication == null) {
@@ -82,7 +83,7 @@ class EbookOutlineActivity : ComponentActivity() {
             } else {
                 // Save to recent books
                 val title = publication?.metadata?.title ?: "Unknown Title"
-                EbookManager.addBook(this@EbookOutlineActivity, title, ebookUri.toString())
+                EbookManager.addBook(this@EbookOutlineActivity, title, ebookFile.absolutePath)
             }
         }
 
@@ -104,7 +105,6 @@ class EbookOutlineActivity : ComponentActivity() {
                 } else {
                     val toc = publication?.tableOfContents ?: emptyList()
                     if (toc.isEmpty()) {
-                        // Fallback to reading order if TOC is empty
                         val readingOrder = publication?.readingOrder ?: emptyList()
                         ChapterList(readingOrder, publication!!, onChapterSelected) { isExtracting = it }
                     } else {
@@ -142,7 +142,6 @@ class EbookOutlineActivity : ComponentActivity() {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(links) { link ->
                 ChapterItem(link, publication, onChapterSelected, setExtracting)
-                // Nested children if any
                 link.children.forEach { child ->
                     ChapterItem(child, publication, onChapterSelected, setExtracting, level = 1)
                 }

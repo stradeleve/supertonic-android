@@ -23,7 +23,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.brahmadeo.supertonic.tts.ui.theme.SupertonicTheme
 import com.brahmadeo.supertonic.tts.utils.EbookManager
-import com.brahmadeo.supertonic.tts.utils.EbookParser
 import com.brahmadeo.supertonic.tts.utils.RecentBook
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,7 +35,6 @@ class EbookLibraryActivity : ComponentActivity() {
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
         if (result.resultCode == RESULT_OK) {
-            // Forward the extracted text back to MainActivity
             setResult(RESULT_OK, result.data)
             finish()
         }
@@ -46,13 +44,12 @@ class EbookLibraryActivity : ComponentActivity() {
         ActivityResultContracts.OpenDocument()
     ) { uri: Uri? ->
         uri?.let {
-            try {
-                val takeFlags: Int = Intent.FLAG_GRANT_READ_URI_PERMISSION
-                contentResolver.takePersistableUriPermission(it, takeFlags)
-            } catch (e: Exception) {
-                e.printStackTrace()
+            val localPath = EbookManager.importBook(this, it)
+            if (localPath != null) {
+                openBook(localPath)
+            } else {
+                Toast.makeText(this, "Failed to import book", Toast.LENGTH_SHORT).show()
             }
-            openBook(it)
         }
     }
 
@@ -63,15 +60,15 @@ class EbookLibraryActivity : ComponentActivity() {
                 LibraryScreen(
                     onBack = { finish() },
                     onOpenNew = { ebookPickerLauncher.launch(arrayOf("application/epub+zip", "application/pdf")) },
-                    onBookClick = { openBook(Uri.parse(it.uri)) }
+                    onBookClick = { openBook(it.path) }
                 )
             }
         }
     }
 
-    private fun openBook(uri: Uri) {
+    private fun openBook(path: String) {
         val intent = Intent(this, EbookOutlineActivity::class.java).apply {
-            putExtra(EbookOutlineActivity.EXTRA_URI, uri.toString())
+            putExtra(EbookOutlineActivity.EXTRA_URI, path)
         }
         ebookOutlineLauncher.launch(intent)
     }
@@ -83,7 +80,7 @@ class EbookLibraryActivity : ComponentActivity() {
         onOpenNew: () -> Unit,
         onBookClick: (RecentBook) -> Unit
     ) {
-        var recentBooks by remember { mutableStateOf(EbookManager.getRecentBooks(this@EbookLibraryActivity)) }
+        val recentBooks by remember { mutableStateOf(EbookManager.getRecentBooks(this@EbookLibraryActivity)) }
 
         Scaffold(
             topBar = {
@@ -119,7 +116,7 @@ class EbookLibraryActivity : ComponentActivity() {
                     items(recentBooks) { book ->
                         ListItem(
                             headlineContent = { Text(book.title, maxLines = 2, overflow = TextOverflow.Ellipsis) },
-                            supportingContent = { Text(book.uri, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                            supportingContent = { Text(book.path, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             leadingContent = { Icon(Icons.Default.Book, contentDescription = null) },
                             modifier = Modifier.clickable { onBookClick(book) }
                         )
