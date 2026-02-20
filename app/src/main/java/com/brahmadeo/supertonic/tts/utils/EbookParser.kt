@@ -1,7 +1,9 @@
 package com.brahmadeo.supertonic.tts.utils
 
 import android.content.Context
+import android.graphics.pdf.PdfRenderer
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -20,13 +22,17 @@ import org.readium.r2.shared.util.use
 import org.readium.r2.shared.publication.services.content.content
 import org.readium.r2.shared.publication.services.content.Content
 import org.readium.r2.shared.publication.services.positions
+import org.readium.adapter.pdfium.document.PdfiumDocumentFactory
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.text.PDFTextStripper
 import java.io.File
 
 class EbookParser(private val context: Context) {
 
     private val httpClient = DefaultHttpClient()
     private val assetRetriever = AssetRetriever(context.contentResolver, httpClient)
-    private val publicationParser = DefaultPublicationParser(context, httpClient, assetRetriever, null)
+    private val pdfFactory = PdfiumDocumentFactory(context)
+    private val publicationParser = DefaultPublicationParser(context, httpClient, assetRetriever, pdfFactory)
     private val publicationOpener = PublicationOpener(publicationParser)
 
     suspend fun openPublication(file: File): Result<Publication> = withContext(Dispatchers.IO) {
@@ -85,30 +91,108 @@ class EbookParser(private val context: Context) {
     }
 
     suspend fun extractPages(publication: Publication, pageIndices: List<Int>): Result<String> = withContext(Dispatchers.IO) {
+        val isPdf = publication.metadata.conformsTo.contains(org.readium.r2.shared.publication.Publication.Profile.PDF) ||
+                    publication.readingOrder.firstOrNull()?.mediaType?.matches(org.readium.r2.shared.util.mediatype.MediaType.PDF) == true
+
+        return@withContext extractPagesReadium(publication, pageIndices, isPdf)
+    }
+
+    suspend fun extractPages(file: File, publication: Publication, pageIndices: List<Int>): Result<String> = withContext(Dispatchers.IO) {
+        val isPdf = file.extension.lowercase() == "pdf" ||
+                    publication.metadata.conformsTo.contains(org.readium.r2.shared.publication.Publication.Profile.PDF) ||
+                    publication.readingOrder.firstOrNull()?.mediaType?.matches(org.readium.r2.shared.util.mediatype.MediaType.PDF) == true
+
+        if (isPdf) {
+            return@withContext extractPagesPdfBox(file, pageIndices)
+        } else {
+            return@withContext extractPagesReadium(publication, pageIndices, isPdf)
+        }
+    }
+
+    private suspend fun extractPagesPdfBox(file: File, pageIndices: List<Int>): Result<String> = withContext(Dispatchers.IO) {
+        var document: PDDocument? = null
+        try {
+            document = PDDocument.load(file)
+            val stripper = PDFTextStripper().apply {
+                sortByPosition = true
+            }
+            
+            val combinedText = StringBuilder()
+            for (index in pageIndices.sorted()) {
+                // PDFBox uses 1-based indexing for pages
+                stripper.startPage = index + 1
+                stripper.endPage = index + 1
+                val pageText = stripper.getText(document)
+                if (pageText.isNotBlank()) {
+                    combinedText.append(pageText).append("\n\n")
+                }
+            }
+            
+            val result = combinedText.toString().trim()
+            if (result.isBlank()) {
+                return@withContext Result.failure<String>(Exception("No text found on selected pages via PDFBox."))
+            }
+            Result.success(result)
+        } catch (e: Exception) {
+            Log.e("EbookParser", "PDFBox extraction failed", e)
+            Result.failure<String>(e)
+        } finally {
+            try { document?.close() } catch (e: Exception) {}
+        }
+    }
+
+    private suspend fun extractPagesReadium(publication: Publication, pageIndices: List<Int>, isPdf: Boolean): Result<String> = withContext(Dispatchers.IO) {
         try {
             val positions = publication.positions()
             val combinedText = StringBuilder()
             
-            // Filter only the pages requested
+            Log.d("EbookParser", "Extracting pages: $pageIndices, isPdf=$isPdf, totalPositions=${positions.size}")
+
             for (index in pageIndices.sorted()) {
                 if (index < 0 || index >= positions.size) continue
                 
                 val locator = positions[index]
-                val content = publication.content(locator)
+                Log.d("EbookParser", "Page index $index locator: $locator")
                 
+                val content = publication.content(locator)
                 if (content != null) {
-                    val elements = content.elements()
-                    // Extract only elements belonging to this page locator
-                    for (element in elements) {
-                        // Stop if we move to next page's locator
-                        if (index + 1 < positions.size && element.locator.href == positions[index+1].href && element.locator.locations.progression == positions[index+1].locations.progression) {
-                            break
+                    val iterator = content.iterator()
+                    var elementsFound = 0
+                    
+                    while (iterator.hasNext()) {
+                        val element = iterator.next()
+                        
+                        // Stop if we move to the next page's locator
+                        if (elementsFound > 0 && index + 1 < positions.size) {
+                            val nextLocator = positions[index + 1]
+                            
+                            val hrefChanged = element.locator.href != nextLocator.href
+                            val fragmentChanged = nextLocator.locations.fragments.isNotEmpty() && 
+                                                 element.locator.locations.fragments != nextLocator.locations.fragments
+                            val positionChanged = nextLocator.locations.position != null && 
+                                                 element.locator.locations.position != nextLocator.locations.position
+                            
+                            if (hrefChanged || fragmentChanged || positionChanged) {
+                                break
+                            }
                         }
+
                         if (element is Content.TextualElement) {
-                            element.text?.let { if (it.isNotBlank()) combinedText.append(it).append(" ") }
+                            element.text?.let { 
+                                if (it.isNotBlank()) {
+                                    combinedText.append(it).append(" ") 
+                                    elementsFound++
+                                }
+                            }
                         }
+                        
+                        // Limit elements per page to avoid getting too much if break condition fails
+                        if (elementsFound > 200) break 
                     }
                     combinedText.append("\n\n")
+                    Log.d("EbookParser", "Extracted $elementsFound elements from page $index")
+                } else {
+                    Log.w("EbookParser", "No content service for page $index")
                 }
             }
             
@@ -118,6 +202,7 @@ class EbookParser(private val context: Context) {
             }
             Result.success(result)
         } catch (e: Exception) {
+            Log.e("EbookParser", "Error in extractPagesReadium", e)
             Result.failure<String>(e)
         }
     }

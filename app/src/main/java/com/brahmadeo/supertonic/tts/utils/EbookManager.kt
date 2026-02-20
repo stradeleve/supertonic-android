@@ -64,12 +64,29 @@ object EbookManager {
         try {
             val contentResolver = context.contentResolver
             
+            // Try to get filename from content resolver
+            var displayName: String? = null
+            try {
+                contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIndex != -1 && cursor.moveToFirst()) {
+                        displayName = cursor.getString(nameIndex)
+                    }
+                }
+            } catch (e: Exception) { e.printStackTrace() }
+
             // Try to get correct extension
             val mimeType = contentResolver.getType(uri)
-            val extension = if (mimeType != null) {
-                MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "epub"
-            } else {
-                if (uri.toString().endsWith(".pdf", true)) "pdf" else "epub"
+            val uriString = uri.toString().lowercase()
+            val extension = when {
+                mimeType == "application/pdf" -> "pdf"
+                mimeType == "application/epub+zip" -> "epub"
+                displayName?.lowercase()?.endsWith(".pdf") == true -> "pdf"
+                displayName?.lowercase()?.endsWith(".epub") == true -> "epub"
+                uriString.endsWith(".pdf") || uriString.contains(".pdf?") -> "pdf"
+                uriString.endsWith(".epub") || uriString.contains(".epub?") -> "epub"
+                mimeType != null -> MimeTypeMap.getSingleton().getExtensionFromMimeType(mimeType) ?: "epub"
+                else -> "epub"
             }
             
             val fileName = "book_${System.currentTimeMillis()}.$extension"

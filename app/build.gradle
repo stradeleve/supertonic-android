@@ -19,7 +19,7 @@ cargo {
 }
 */
 
-    android {
+android {
     namespace 'com.brahmadeo.supertonic.tts'
     compileSdk 34
     ndkVersion "29.0.14206865"
@@ -31,15 +31,31 @@ cargo {
     }
 
     defaultConfig {
-
         applicationId "com.brahmadeo.supertonic.tts"
         minSdk 24
         targetSdk 34
         versionCode 5
         versionName "1.9"
-        
+
         ndk {
             abiFilters "arm64-v8a"
+        }
+    }
+
+    configurations.all {
+        resolutionStrategy.eachDependency { details ->
+            if (details.requested.group == 'androidx.media3' && details.requested.name != 'media3-common-ktx') {
+                details.useVersion '1.3.1'
+            }
+            if (details.requested.group == 'androidx.core' && details.requested.name != 'core-viewtree') {
+                details.useVersion '1.13.1'
+            }
+            if (details.requested.group == 'androidx.recyclerview') {
+                details.useVersion '1.3.2'
+            }
+            if (details.requested.group == 'androidx.lifecycle') {
+                details.useVersion '2.8.4'
+            }
         }
     }
     
@@ -91,8 +107,13 @@ dependencies {
     onnxRuntime 'com.microsoft.onnxruntime:onnxruntime-android:1.24.1'
     
     // Readium Toolkit
-    implementation "org.readium.kotlin-toolkit:readium-shared:$readium_version"
-    implementation "org.readium.kotlin-toolkit:readium-streamer:$readium_version"
+    implementation ("org.readium.kotlin-toolkit:readium-shared:$readium_version")
+    implementation ("org.readium.kotlin-toolkit:readium-streamer:$readium_version")
+    implementation ("org.readium.kotlin-toolkit:readium-adapter-pdfium:$readium_version") {
+        exclude group: 'androidx.media3', module: 'media3-common-ktx'
+    }
+
+    implementation 'com.tom-roush:pdfbox-android:2.0.27.0'
 
     debugImplementation 'androidx.compose.ui:ui-tooling'
 }

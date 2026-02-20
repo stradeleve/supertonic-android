@@ -45,6 +45,7 @@ import com.brahmadeo.supertonic.tts.ui.DownloadScreen
 import com.brahmadeo.supertonic.tts.utils.AssetManager
 import com.brahmadeo.supertonic.tts.utils.EbookParser
 import com.brahmadeo.supertonic.tts.utils.EbookManager
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 
 class MainActivity : ComponentActivity() {
 
@@ -161,6 +162,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        PDFBoxResourceLoader.init(this)
 
         loadPreferences()
         checkNotificationPermission()
@@ -533,9 +535,6 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    // ... (generateAndPlay, addToQueue, playNow, launchPlaybackActivity, handleIntent, checkResumeState, lifecycle methods same as before) ...
-    // Note: I will include the full file content to ensure no missing braces.
 
     private fun generateAndPlay(text: String) {
         val isReady = if (currentModelVersion == "v1") AssetManager.isV1Ready(this) else AssetManager.isV2Ready(this)

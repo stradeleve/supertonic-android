@@ -14,17 +14,23 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -32,12 +38,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.brahmadeo.supertonic.tts.ui.theme.SupertonicTheme
 import com.brahmadeo.supertonic.tts.utils.EbookManager
 import com.brahmadeo.supertonic.tts.utils.EbookParser
@@ -48,7 +58,10 @@ import kotlinx.coroutines.withContext
 import org.readium.r2.shared.publication.Link
 import org.readium.r2.shared.publication.Publication
 import org.readium.r2.shared.publication.services.positions
+import org.readium.r2.shared.util.mediatype.MediaType
 import java.io.File
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 class EbookOutlineActivity : ComponentActivity() {
 
@@ -82,7 +95,7 @@ class EbookOutlineActivity : ComponentActivity() {
         }
     }
 
-    @OptIn(ExperimentalMaterial3Api::class)
+    @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
     @Composable
     fun OutlineScreen(
         ebookFile: File,
@@ -94,7 +107,7 @@ class EbookOutlineActivity : ComponentActivity() {
         var isExtracting by remember { mutableStateOf(false) }
         var selectedTabIndex by remember { mutableIntStateOf(0) }
         
-        val isPdf = ebookFile.extension.lowercase() == "pdf"
+        var isPdf by remember { mutableStateOf(ebookFile.extension.lowercase() == "pdf") }
 
         LaunchedEffect(ebookFile) {
             val result = ebookParser.openPublication(ebookFile)
@@ -104,7 +117,15 @@ class EbookOutlineActivity : ComponentActivity() {
                 Toast.makeText(this@EbookOutlineActivity, "Failed to open ebook", Toast.LENGTH_SHORT).show()
                 onBack()
             } else {
-                val title = publication?.metadata?.title ?: "Unknown Title"
+                // Better detection using Readium metadata
+                val conformsToPdf = publication?.metadata?.conformsTo?.contains(Publication.Profile.PDF) == true
+                val isPdfMediaType = publication?.readingOrder?.firstOrNull()?.mediaType?.matches(MediaType.PDF) == true
+                
+                if (conformsToPdf || isPdfMediaType) {
+                    isPdf = true
+                }
+
+                val title = publication?.metadata?.title ?: ebookFile.nameWithoutExtension
                 EbookManager.addBook(this@EbookOutlineActivity, title, ebookFile.absolutePath)
                 if (isPdf) selectedTabIndex = 1 // Default to Pages for PDF
             }
@@ -128,11 +149,13 @@ class EbookOutlineActivity : ComponentActivity() {
                                 onClick = { selectedTabIndex = 0 },
                                 text = { Text("Chapters") }
                             )
-                            Tab(
-                                selected = selectedTabIndex == 1,
-                                onClick = { selectedTabIndex = 1 },
-                                text = { Text("Pages") }
-                            )
+                            if (isPdf) {
+                                Tab(
+                                    selected = selectedTabIndex == 1,
+                                    onClick = { selectedTabIndex = 1 },
+                                    text = { Text("Pages") }
+                                )
+                            }
                         }
                     }
                 }
@@ -144,7 +167,7 @@ class EbookOutlineActivity : ComponentActivity() {
                 } else if (publication != null) {
                     when (selectedTabIndex) {
                         0 -> ChapterTab(publication!!, onTextExtracted) { isExtracting = it }
-                        1 -> PagesTab(ebookFile, publication!!, onTextExtracted) { isExtracting = it }
+                        1 -> PagesTab(ebookFile, publication!!, isPdf, onTextExtracted) { isExtracting = it }
                     }
                 }
 
@@ -216,25 +239,30 @@ class EbookOutlineActivity : ComponentActivity() {
         )
     }
 
+    @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
     @Composable
     fun PagesTab(
         file: File,
         publication: Publication,
+        isPdf: Boolean,
         onTextExtracted: (String) -> Unit,
         setExtracting: (Boolean) -> Unit
     ) {
         var pageCount by remember { mutableIntStateOf(0) }
         val selectedPages = remember { mutableStateListOf<Int>() }
-        
+        var showPagePreviewDialog by remember { mutableStateOf(false) }
+        var previewPageIndex by remember { mutableIntStateOf(0) }
+        var multiSelectMode by remember { mutableStateOf(false) }
+
         LaunchedEffect(publication) {
             pageCount = publication.positions().size
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
             LazyVerticalGrid(
-                columns = GridCells.Fixed(3),
+                columns = GridCells.Fixed(2),
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, 80.dp),
+                contentPadding = PaddingValues(16.dp, 16.dp, 16.dp, max(if (selectedPages.isNotEmpty()) 80 else 16, 16).dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
@@ -242,13 +270,21 @@ class EbookOutlineActivity : ComponentActivity() {
                     PageThumbnailItem(
                         file = file,
                         pageIndex = index,
+                        isPdf = isPdf,
                         isSelected = selectedPages.contains(index),
-                        onClick = {
-                            if (selectedPages.contains(index)) {
-                                selectedPages.remove(index)
+                        multiSelectMode = multiSelectMode,
+                        onClick = { 
+                            if (multiSelectMode) {
+                                if (selectedPages.contains(index)) selectedPages.remove(index) else selectedPages.add(index)
                             } else {
-                                selectedPages.add(index)
+                                previewPageIndex = index
+                                showPagePreviewDialog = true
                             }
+                        },
+                        onLongClick = {
+                            multiSelectMode = !multiSelectMode
+                            if (!multiSelectMode) selectedPages.clear()
+                            if (multiSelectMode && !selectedPages.contains(index)) selectedPages.add(index)
                         }
                     )
                 }
@@ -258,9 +294,11 @@ class EbookOutlineActivity : ComponentActivity() {
                 Button(
                     onClick = {
                         setExtracting(true)
+                        multiSelectMode = false
                         CoroutineScope(Dispatchers.Main).launch {
-                            val result = ebookParser.extractPages(publication, selectedPages.toList())
+                            val result = ebookParser.extractPages(file, publication, selectedPages.toList())
                             setExtracting(false)
+                            selectedPages.clear()
                             result.onSuccess { onTextExtracted(it) }
                                 .onFailure { Toast.makeText(this@EbookOutlineActivity, it.message, Toast.LENGTH_SHORT).show() }
                         }
@@ -274,24 +312,51 @@ class EbookOutlineActivity : ComponentActivity() {
                 }
             }
         }
+        
+        if (showPagePreviewDialog) {
+            PagePreviewDialog(
+                file = file,
+                pageIndex = previewPageIndex,
+                isPdf = isPdf,
+                onDismiss = { showPagePreviewDialog = false },
+                onLoadPage = { pageIndexToLoad ->
+                    showPagePreviewDialog = false
+                    setExtracting(true)
+                    CoroutineScope(Dispatchers.Main).launch {
+                        val result = ebookParser.extractPages(file, publication, listOf(pageIndexToLoad))
+                        setExtracting(false)
+                        result.onSuccess { onTextExtracted(it) }
+                            .onFailure { Toast.makeText(this@EbookOutlineActivity, it.message, Toast.LENGTH_SHORT).show() }
+                    }
+                }
+            )
+        }
     }
 
+    @OptIn(ExperimentalMaterial3Api::class)
     @Composable
-    fun PageThumbnailItem(
+    fun PagePreviewDialog(
         file: File,
         pageIndex: Int,
-        isSelected: Boolean,
-        onClick: () -> Unit
+        isPdf: Boolean,
+        onDismiss: () -> Unit,
+        onLoadPage: (Int) -> Unit
     ) {
         var thumbnail by remember { mutableStateOf<Bitmap?>(null) }
+        var isLoadingPreview by remember { mutableStateOf(true) }
 
         LaunchedEffect(file, pageIndex) {
+            if (!isPdf) {
+                isLoadingPreview = false
+                return@LaunchedEffect
+            }
+            isLoadingPreview = true
             withContext(Dispatchers.IO) {
                 try {
                     val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                     val renderer = PdfRenderer(pfd)
                     val page = renderer.openPage(pageIndex)
-                    val bitmap = Bitmap.createBitmap(300, 400, Bitmap.Config.ARGB_8888)
+                    val bitmap = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
                     page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     thumbnail = bitmap
                     page.close()
@@ -299,13 +364,102 @@ class EbookOutlineActivity : ComponentActivity() {
                     pfd.close()
                 } catch (e: Exception) {
                     e.printStackTrace()
+                    thumbnail = null
+                } finally {
+                    isLoadingPreview = false
+                }
+            }
+        }
+        
+        Dialog(onDismissRequest = onDismiss) {
+            Card(
+                modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Page ${pageIndex + 1} Preview", style = MaterialTheme.typography.headlineSmall)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    if (isLoadingPreview) {
+                        CircularProgressIndicator(modifier = Modifier.size(48.dp))
+                    } else if (thumbnail != null) {
+                        Image(
+                            bitmap = thumbnail!!.asImageBitmap(),
+                            contentDescription = "Page ${pageIndex + 1}",
+                            modifier = Modifier.fillMaxWidth().heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.6f),
+                            contentScale = ContentScale.FillWidth
+                        )
+                    } else if (!isPdf) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.Description,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Preview not available for this format", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    } else {
+                        Text("Error loading preview", color = MaterialTheme.colorScheme.error)
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround
+                    ) {
+                        TextButton(onClick = onDismiss) { Text("Cancel") }
+                        Button(onClick = { onLoadPage(pageIndex) }) { Text("Load Page") }
+                    }
+                }
+            }
+        }
+    }
+
+
+    @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+    @Composable
+    fun PageThumbnailItem(
+        file: File,
+        pageIndex: Int,
+        isPdf: Boolean,
+        isSelected: Boolean,
+        multiSelectMode: Boolean,
+        onClick: () -> Unit,
+        onLongClick: () -> Unit
+    ) {
+        var thumbnail by remember { mutableStateOf<Bitmap?>(null) }
+
+        if (isPdf) {
+            LaunchedEffect(file, pageIndex) {
+                withContext(Dispatchers.IO) {
+                    try {
+                        val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
+                        val renderer = PdfRenderer(pfd)
+                        val page = renderer.openPage(pageIndex)
+                        val bitmap = Bitmap.createBitmap(300, 400, Bitmap.Config.ARGB_8888)
+                        page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                        thumbnail = bitmap
+                        page.close()
+                        renderer.close()
+                        pfd.close()
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
                 }
             }
         }
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.clickable { onClick() }
+            modifier = Modifier.combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            )
         ) {
             Box(
                 modifier = Modifier
@@ -313,22 +467,35 @@ class EbookOutlineActivity : ComponentActivity() {
                     .clip(RoundedCornerShape(8.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant)
                     .border(
-                        width = if (isSelected) 3.dp else 1.dp,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline,
+                        width = if (isSelected || multiSelectMode) 3.dp else 1.dp,
+                        color = when {
+                            isSelected -> MaterialTheme.colorScheme.primary
+                            multiSelectMode -> MaterialTheme.colorScheme.secondary
+                            else -> MaterialTheme.colorScheme.outline
+                        },
                         shape = RoundedCornerShape(8.dp)
                     )
             ) {
-                thumbnail?.let {
-                    Image(
-                        bitmap = it.asImageBitmap(),
-                        contentDescription = "Page ${pageIndex + 1}",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                if (isPdf) {
+                    thumbnail?.let {
+                        Image(
+                            bitmap = it.asImageBitmap(),
+                            contentDescription = "Page ${pageIndex + 1}",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop
+                        )
+                    } ?: CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp).align(Alignment.Center),
+                        strokeWidth = 2.dp
                     )
-                } ?: CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp).align(Alignment.Center),
-                    strokeWidth = 2.dp
-                )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp).align(Alignment.Center),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                    )
+                }
                 
                 if (isSelected) {
                     Box(
@@ -340,6 +507,13 @@ class EbookOutlineActivity : ComponentActivity() {
                         imageVector = Icons.Default.CheckCircle,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
+                    )
+                } else if (multiSelectMode) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier.align(Alignment.TopEnd).padding(4.dp)
                     )
                 }
