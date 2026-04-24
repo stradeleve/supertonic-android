@@ -2,6 +2,7 @@ Categories:
   - Development
   - Multimedia
 License: GPL-3.0-only
+AntiFeature: NonFreeNet
 AuthorName: Brahmadeo
 SourceCode: https://github.com/DevGitPit/supertonic-android
 IssueTracker: https://github.com/DevGitPit/supertonic-android/issues
@@ -14,7 +15,7 @@ Repo: https://github.com/DevGitPit/supertonic-android
 Builds:
   - versionName: 2.8.0
     versionCode: 9
-    commit: v2.8.0
+    commit: 519d2d458ea864d568ef28a8d515c1d258ce1329
     sudo:
       - apt-get update
       - apt-get install -y gcc libc-dev rustup pkg-config libssl-dev
@@ -23,8 +24,7 @@ Builds:
     output: app/build/outputs/apk/release/app-release-unsigned.apk
     prebuild:
       - rustup default 1.94.1
-      - rustup target add aarch64-linux-android armv7-linux-androideabi i686-linux-android
-        x86_64-linux-android
+      - rustup target add aarch64-linux-android
       - cd rust
       - cargo vendor vendor
       - mkdir -p rust/.cargo
@@ -38,13 +38,7 @@ Builds:
       - rust/vendor/regex-automata/tests/fuzz/testdata
       - rust/vendor/vcpkg/test-data
     scandelete:
-      - rust/vendor/winapi-x86_64-pc-windows-gnu/lib
-      - rust/vendor/winapi-i686-pc-windows-gnu/lib
-      - rust/vendor/windows_aarch64_gnullvm/lib
-      - rust/vendor/windows_x86_64_gnullvm/lib
-      - rust/vendor/windows_x86_64_gnu/lib
-      - rust/vendor/windows_i686_gnu/lib
-      - rust/vendor/wit-bindgen
+      - rust/vendor
     ndk: r29
 
 AutoUpdateMode: Version
