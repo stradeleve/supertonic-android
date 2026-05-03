@@ -56,15 +56,15 @@ tasks.register('extractOnnxLib', Copy) {
     from {
         zipTree(configurations.onnxRuntime.singleFile)
     }
-    into "${project.buildDir}/onnxruntime"
+    into layout.buildDirectory.dir("onnxruntime")
     include "jni/**/libonnxruntime.so"
 }
 
 // Task to manually copy the built Rust library to a location Gradle WILL package
 tasks.register('copyRustLibs', Copy) {
     dependsOn 'cargoBuild'
-    from "${project.buildDir}/rustJniLibs/android"
-    into "${project.buildDir}/finalJniLibs"
+    from layout.buildDirectory.dir("rustJniLibs/android")
+    into layout.buildDirectory.dir("finalJniLibs")
 }
 
 // Configure cargoBuild task
@@ -72,7 +72,7 @@ tasks.configureEach { task ->
     if (task.name.startsWith('cargoBuild')) {
         task.dependsOn extractOnnxLib
         if (task.hasProperty('environment')) {
-            task.environment 'ORT_LIB_LOCATION', "${project.buildDir}/onnxruntime/jni"
+            task.environment 'ORT_LIB_LOCATION', "${layout.buildDirectory.get().asFile}/onnxruntime/jni"
             task.environment 'ORT_SKIP_DOWNLOAD', '1'
         }
     }
@@ -151,7 +151,7 @@ android {
 }
 
 afterEvaluate {
-    android.sourceSets.main.jniLibs.setSrcDirs(["src/main/jniLibs", "${project.buildDir}/finalJniLibs"])
+    android.sourceSets.main.jniLibs.setSrcDirs(["src/main/jniLibs", layout.buildDirectory.dir("finalJniLibs").get().asFile.absolutePath])
 }
 
 dependencies {

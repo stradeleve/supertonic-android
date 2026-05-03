@@ -4,6 +4,9 @@
     <!-- Main Activity -->
     <string name="default_input_text">Bonjour tout le monde, c\'est Supertonic TTS sur Android. Sélectionnez une voix et une vitesse ci-dessous !</string>
     <string name="voice_style_label">Style de Voix</string>
+    <string name="mix_voices_label">Mélanger les voix</string>
+    <string name="voice_style_2_label">Voix secondaire</string>
+    <string name="mix_ratio_label">Ratio de mélange</string>
     <string name="speed_label">Vitesse</string>
     <string name="quality_label">Qualité</string>
     <string name="synthesize_button">Synthétiser</string>
@@ -64,11 +67,17 @@
 
     <!-- Menus -->
     <string name="action_reset">Réinitialiser</string>
+    <string name="action_open_ebook">Ouvrir un livre électronique (EPUB/PDF)</string>
     <string name="action_saved">Audio enregistré</string>
     <string name="action_history">Historique</string>
     <string name="action_lexicon">Lexique</string>
+    <string name="action_delete_v2">Supprimer les modèles multilingues</string>
     <string name="action_import">Importer JSON</string>
     <string name="action_export">Exporter JSON</string>
+    
+    <string name="synthesize_content_description">Synthétiser et lire la parole</string>
+    <string name="input_label">Entrée</string>
+    <string name="language_label">Langue</string>
     
     <!-- Notifications -->
     <string name="notif_synthesizing">Synthèse en cours...</string>

@@ -422,7 +422,12 @@ class MainActivity : ComponentActivity() {
     private fun getLocalizedResource(context: Context, lang: String, resId: Int): String {
         val locale = java.util.Locale.forLanguageTag(lang)
         val config = android.content.res.Configuration(context.resources.configuration)
-        config.setLocale(locale)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            config.setLocales(android.os.LocaleList(locale))
+        } else {
+            @Suppress("DEPRECATION")
+            config.setLocale(locale)
+        }
         val localizedContext = context.createConfigurationContext(config)
         return localizedContext.resources.getString(resId)
     }
@@ -474,7 +479,7 @@ class MainActivity : ComponentActivity() {
         
         CoroutineScope(Dispatchers.IO).launch {
             withContext(Dispatchers.Main) {
-                setupVoicesMap(version)
+                setupVoicesMap(version, viewModel.currentLang.value)
             }
             
             // Force release of any existing engine to ensure we load the new model path
@@ -507,7 +512,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun setupVoicesMap(version: String) {
+    private fun setupVoicesMap(version: String, lang: String) {
+        viewModel.voiceFiles.clear()
         val voiceResources = mapOf(
             "M1.json" to R.string.voice_m1,
             "M2.json" to R.string.voice_m2,
@@ -522,7 +528,7 @@ class MainActivity : ComponentActivity() {
         )
 
         voiceResources.forEach { (filename, resId) ->
-            viewModel.voiceFiles[getString(resId)] = filename
+            viewModel.voiceFiles[getLocalizedResource(this, lang, resId)] = filename
         }
 
         // Check dynamic dir for default listing

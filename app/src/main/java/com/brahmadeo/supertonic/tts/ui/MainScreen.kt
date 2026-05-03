@@ -1,11 +1,11 @@
 package com.brahmadeo.supertonic.tts.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import java.util.Locale
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -79,134 +79,134 @@ fun MainScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Supertonic TTS") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = { showMenu = true }) {
                         Icon(Icons.Default.MoreVert, contentDescription = "Menu")
                     }
                     DropdownMenu(
-                        expanded = showMenu,
-                        onDismissRequest = { showMenu = false }
+                    expanded = showMenu,
+                    onDismissRequest = { showMenu = false }
                     ) {
-                        DropdownMenuItem(text = { Text("Reset") }, onClick = { showMenu = false; onResetClick() })
-                        DropdownMenuItem(text = { Text("Open Ebook (EPUB/PDF)") }, onClick = { showMenu = false; onOpenEbookClick() })
-                        DropdownMenuItem(text = { Text("Saved Audio") }, onClick = { showMenu = false; onSavedAudioClick() })
-                        DropdownMenuItem(text = { Text("History") }, onClick = { showMenu = false; onHistoryClick() })
-                        DropdownMenuItem(text = { Text("Queue") }, onClick = { showMenu = false; onQueueClick() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_reset)) }, onClick = { showMenu = false; onResetClick() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_open_ebook)) }, onClick = { showMenu = false; onOpenEbookClick() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_saved)) }, onClick = { showMenu = false; onSavedAudioClick() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_history)) }, onClick = { showMenu = false; onHistoryClick() })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.action_queue)) }, onClick = { showMenu = false; onQueueClick() })
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.action_lexicon)) },
+                        onClick = { showMenu = false; onLexiconClick() },
+                        enabled = currentLangCode == "en"
+                    )
+                    if (isV2Ready && currentLangCode == "en") {
                         DropdownMenuItem(
-                            text = { Text("Lexicon") },
-                            onClick = { showMenu = false; onLexiconClick() },
-                            enabled = currentLangCode == "en"
+                            text = { Text(stringResource(R.string.action_delete_v2), color = MaterialTheme.colorScheme.error) },
+                            onClick = { showMenu = false; onDeleteV2Click() }
                         )
-                        if (isV2Ready && currentLangCode == "en") {
-                            DropdownMenuItem(
-                                text = { Text("Delete Multilingual Models", color = MaterialTheme.colorScheme.error) },
-                                onClick = { showMenu = false; onDeleteV2Click() }
-                            )
-                        }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
+                    }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface,
-                )
-            )
-        },
-        floatingActionButton = {
-            val buttonText = when {
-                isInitializing -> "Initializing..."
-                isSynthesizing -> "Synthesizing..."
-                else -> "Synthesize"
-            }
-            val isLoading = isInitializing || isSynthesizing
+                    )
+                    )
+                    },
+                    floatingActionButton = {
+                    val buttonText = when {
+                    isInitializing -> stringResource(R.string.initializing)
+                    isSynthesizing -> stringResource(R.string.notif_synthesizing)
+                    else -> stringResource(R.string.synthesize_button)
+                    }
+                    val isLoading = isInitializing || isSynthesizing
+                    val synthesizeContentDesc = stringResource(R.string.synthesize_content_description)
 
-            ExtendedFloatingActionButton(
-                onClick = onSynthesizeClick,
-                text = { Text(buttonText) },
-                icon = { Icon(painterResource(android.R.drawable.ic_btn_speak_now), contentDescription = null) },
-                expanded = true,
-                containerColor = if (isLoading) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
-                contentColor = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.semantics {
-                    contentDescription = "Synthesize and play speech"
+                    ExtendedFloatingActionButton(
+                    onClick = onSynthesizeClick,
+                    text = { Text(buttonText) },
+                    icon = { Icon(painterResource(android.R.drawable.ic_btn_speak_now), contentDescription = null) },
+                    expanded = true,
+                    containerColor = if (isLoading) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.semantics {
+                    contentDescription = synthesizeContentDesc
                     stateDescription = buttonText
                     if (isLoading) {
-                        disabled()
+                    disabled()
                     }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            val scrollState = rememberScrollState()
-            
-            Column(
-                modifier = Modifier
+                    }
+                    )
+                    }
+                    ) { paddingValues ->
+                    Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
+                    val scrollState = rememberScrollState()
+
+                    Column(
+                    modifier = Modifier
                     .fillMaxSize()
                     .imePadding() // Shrinks the scrollable area when keyboard is up
                     .verticalScroll(scrollState)
                     .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Text Input
-                var isFocused by remember { mutableStateOf(false) }
-                OutlinedTextField(
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                    // Text Input
+                    var isFocused by remember { mutableStateOf(false) }
+                    OutlinedTextField(
                     value = inputText,
                     onValueChange = onInputTextChange,
                     placeholder = {
-                        if (!isFocused) {
-                            Text(placeholderText)
-                        }
+                    if (!isFocused) {
+                        Text(placeholderText)
+                    }
                     },
-                    label = { Text("Input") },
+                    label = { Text(stringResource(R.string.input_label)) },
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 200.dp)
-                        .onFocusChanged { isFocused = it.isFocused },
+                    .fillMaxWidth()
+                    .heightIn(min = 200.dp)
+                    .onFocusChanged { isFocused = it.isFocused },
                     // Increased maxLines significantly to avoid internal scrolling conflict.
                     // This makes the cursor stay visible as the whole page scrolls instead.
                     maxLines = 40 
-                )
+                    )
 
-                // Controls Card
-                Card(
+                    // Controls Card
+                    Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        // Language Selector
-                        DropdownSelector(
-                            label = "Language",
-                            options = languages.keys.toList(),
-                            selectedOption = languages.entries.find { it.value == currentLangCode }?.key ?: "English",
-                            onOptionSelected = { name -> onLangChange(languages[name] ?: "en") }
-                        )
+                    Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                    // Language Selector
+                    DropdownSelector(
+                        label = stringResource(R.string.language_label),
+                        options = languages.keys.toList(),
+                        selectedOption = languages.entries.find { it.value == currentLangCode }?.key ?: "English",
+                        onOptionSelected = { name -> onLangChange(languages[name] ?: "en") }
+                    )
 
-                        // Voice Selector
-                        DropdownSelector(
-                            label = "Voice Style",
-                            options = voices.keys.toList().sorted(),
-                            selectedOption = voices.entries.find { it.value == selectedVoiceFile }?.key ?: "",
-                            onOptionSelected = { name -> onVoiceChange(voices[name] ?: "M1.json") }
-                        )
+                    // Voice Selector
+                    DropdownSelector(
+                        label = stringResource(R.string.voice_style_label),
+                        options = voices.keys.toList().sorted(),
+                        selectedOption = voices.entries.find { it.value == selectedVoiceFile }?.key ?: "",
+                        onOptionSelected = { name -> onVoiceChange(voices[name] ?: "M1.json") }
+                    )
 
-                        // Mix Switch
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Mix Voices", modifier = Modifier.weight(1f))
-                            Switch(checked = isMixingEnabled, onCheckedChange = onMixingEnabledChange)
-                        }
-
+                    // Mix Switch
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.mix_voices_label), modifier = Modifier.weight(1f))
+                        Switch(checked = isMixingEnabled, onCheckedChange = onMixingEnabledChange)
+                    }
                         // Mixing Controls
                         AnimatedVisibility(visible = isMixingEnabled) {
                             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                                 DropdownSelector(
-                                    label = "Secondary Voice",
+                                    label = stringResource(R.string.voice_style_2_label),
                                     options = voices.keys.toList().sorted(),
                                     selectedOption = voices.entries.find { it.value == selectedVoiceFile2 }?.key ?: "",
                                     onOptionSelected = { name -> onVoice2Change(voices[name] ?: "M2.json") }
@@ -214,7 +214,7 @@ fun MainScreen(
 
                                 Column {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Mix Ratio", style = MaterialTheme.typography.labelMedium)
+                                        Text(stringResource(R.string.mix_ratio_label), style = MaterialTheme.typography.labelMedium)
                                         Text("${(mixAlpha * 100).toInt()}%", style = MaterialTheme.typography.labelLarge)
                                     }
                                     Slider(
@@ -230,8 +230,8 @@ fun MainScreen(
                         // Speed
                         Column {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Speed", style = MaterialTheme.typography.labelMedium)
-                                Text(String.format("%.2fx", speed), style = MaterialTheme.typography.labelLarge)
+                                Text(stringResource(R.string.speed_label), style = MaterialTheme.typography.labelMedium)
+                                Text(String.format(Locale.US, "%.2fx", speed), style = MaterialTheme.typography.labelLarge)
                             }
                             Slider(
                                 value = speed,
@@ -244,7 +244,7 @@ fun MainScreen(
                         // Quality
                         Column {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Quality (Steps)", style = MaterialTheme.typography.labelMedium)
+                                Text(stringResource(R.string.quality_label), style = MaterialTheme.typography.labelMedium)
                                 Text("$steps steps", style = MaterialTheme.typography.labelLarge)
                             }
                             Slider(
@@ -281,7 +281,7 @@ fun MainScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "Now Playing",
+                                text = stringResource(R.string.now_playing_title),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

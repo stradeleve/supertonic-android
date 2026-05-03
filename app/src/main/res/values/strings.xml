@@ -73,12 +73,18 @@
 
     <!-- Menus -->
     <string name="action_reset">Reset</string>
+    <string name="action_open_ebook">Open Ebook (EPUB/PDF)</string>
     <string name="action_saved">Saved Audio</string>
     <string name="action_history">History</string>
     <string name="action_queue">Queue</string>
     <string name="action_lexicon">Lexicon</string>
+    <string name="action_delete_v2">Delete Multilingual Models</string>
     <string name="action_import">Import JSON</string>
     <string name="action_export">Export JSON</string>
+    
+    <string name="synthesize_content_description">Synthesize and play speech</string>
+    <string name="input_label">Input</string>
+    <string name="language_label">Language</string>
     
     <!-- Notifications -->
     <string name="notif_synthesizing">Synthesizing...</string>

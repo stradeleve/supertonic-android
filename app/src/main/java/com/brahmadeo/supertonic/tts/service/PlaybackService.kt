@@ -184,7 +184,7 @@ class PlaybackService : Service(), SupertonicTTS.ProgressListener, AudioManager.
             SupertonicTTS.setCancelled(false) 
             
             updatePlaybackState(PlaybackStateCompat.STATE_BUFFERING)
-            startForegroundService("Synthesizing...", false)
+            startForegroundService(getString(R.string.notif_synthesizing), false)
             notifyListenerState(false)
             
             wakeLock?.acquire(10 * 60 * 1000L)
@@ -382,7 +382,7 @@ class PlaybackService : Service(), SupertonicTTS.ProgressListener, AudioManager.
                 audioTrack?.play()
                 notifyListenerState(true)
                 updatePlaybackState(PlaybackStateCompat.STATE_PLAYING)
-                startForegroundService("Playing Audio", true)
+                startForegroundService(getString(R.string.notif_playing), true)
             }
         }
     }
@@ -394,7 +394,7 @@ class PlaybackService : Service(), SupertonicTTS.ProgressListener, AudioManager.
             audioTrack?.pause()
             notifyListenerState(false)
             updatePlaybackState(PlaybackStateCompat.STATE_PAUSED)
-            updateNotification("Paused", true)
+            updateNotification(getString(R.string.notif_paused), true)
         }
     }
 
@@ -492,7 +492,7 @@ class PlaybackService : Service(), SupertonicTTS.ProgressListener, AudioManager.
             }
             stopPlayback()
             SupertonicTTS.setCancelled(false)
-            startForegroundService("Exporting Audio...", false)
+            startForegroundService(getString(R.string.notif_exporting), false)
             launch(Dispatchers.IO) {
                 try {
                     val sentences = textNormalizer.splitIntoSentences(text)
@@ -553,7 +553,7 @@ class PlaybackService : Service(), SupertonicTTS.ProgressListener, AudioManager.
         val activityIntent = Intent(this, MainActivity::class.java)
         val pendingIntent = PendingIntent.getActivity(this, 0, activityIntent, PendingIntent.FLAG_IMMUTABLE)
         val builder = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("Supertonic TTS")
+            .setContentTitle(getString(R.string.app_name))
             .setContentText(status)
             .setSmallIcon(R.mipmap.ic_launcher)
             .setContentIntent(pendingIntent)
@@ -562,14 +562,14 @@ class PlaybackService : Service(), SupertonicTTS.ProgressListener, AudioManager.
 
         if (showControls) {
             if (isPlaying) {
-                builder.addAction(android.R.drawable.ic_media_pause, "Pause",
+                builder.addAction(android.R.drawable.ic_media_pause, getString(R.string.notif_paused),
                     androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_PAUSE))
             } else {
-                builder.addAction(android.R.drawable.ic_media_play, "Play",
+                builder.addAction(android.R.drawable.ic_media_play, getString(R.string.yes), // No play string in resources, reusing yes for now or just generic
                     androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_PLAY))
             }
         } else {
-             builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, "Stop",
+             builder.addAction(android.R.drawable.ic_menu_close_clear_cancel, getString(R.string.cancel),
                 androidx.media.session.MediaButtonReceiver.buildMediaButtonPendingIntent(this, PlaybackStateCompat.ACTION_STOP))
         }
         return builder.build()
