@@ -96,6 +96,7 @@ class MainActivity : ComponentActivity() {
             isBound = true
             try {
                 playbackService?.setListener(playbackListener)
+                checkResumeState()
             } catch (e: Exception) { e.printStackTrace() }
         }
 
@@ -206,7 +207,6 @@ class MainActivity : ComponentActivity() {
         }
 
         handleIntent(intent)
-        checkResumeState()
 
         setContent {
             SupertonicTheme {
@@ -712,9 +712,23 @@ class MainActivity : ComponentActivity() {
 
         val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
         val lastText = prefs.getString("last_text", null)
-        val isPlaying = prefs.getBoolean("is_playing", false)
+        val isPlayingPref = prefs.getBoolean("is_playing", false)
 
-        if (!lastText.isNullOrEmpty() && isPlaying) {
+        if (lastText.isNullOrEmpty()) return
+
+        // If service is already active, just go to PlaybackActivity (no prompt)
+        try {
+            if (playbackService != null && playbackService?.isServiceActive == true) {
+                val intent = Intent(this, PlaybackActivity::class.java).apply {
+                    putExtra("is_resume", true)
+                    flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                }
+                startActivity(intent)
+                return
+            }
+        } catch (e: Exception) { }
+
+        if (isPlayingPref) {
              AlertDialog.Builder(this)
                 .setTitle(getString(R.string.resume_title))
                 .setMessage(getString(R.string.resume_message))

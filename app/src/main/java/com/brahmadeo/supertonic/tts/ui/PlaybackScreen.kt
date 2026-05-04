@@ -29,7 +29,8 @@ fun PlaybackScreen(
     isPlaying: Boolean,
     isServiceActive: Boolean,
     isExporting: Boolean,
-    exportProgress: Int, // 0 to 100 or -1 if indeterminate
+    exportCurrent: Int,
+    exportTotal: Int,
     onBackClick: () -> Unit,
     onItemClick: (Int) -> Unit,
     onPlayPauseClick: () -> Unit,
@@ -168,10 +169,19 @@ fun PlaybackScreen(
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
-                                if (exportProgress >= 0) {
-                                    CircularProgressIndicator(progress = { exportProgress / 100f })
+                                if (exportTotal > 0) {
+                                    val progress = exportCurrent.toFloat() / exportTotal
+                                    CircularProgressIndicator(
+                                        progress = { progress },
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "$exportCurrent / $exportTotal",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
                                 } else {
-                                    CircularProgressIndicator()
+                                    CircularProgressIndicator(modifier = Modifier.size(48.dp))
                                 }
                                 Spacer(modifier = Modifier.height(16.dp))
                                 TextButton(

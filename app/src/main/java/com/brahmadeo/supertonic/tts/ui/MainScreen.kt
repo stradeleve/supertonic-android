@@ -2,6 +2,7 @@ package com.brahmadeo.supertonic.tts.ui
 
 import androidx.compose.animation.AnimatedVisibility
 import java.util.Locale
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -13,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -154,23 +156,67 @@ fun MainScreen(
                     ) {
                     // Text Input
                     var isFocused by remember { mutableStateOf(false) }
-                    OutlinedTextField(
-                    value = inputText,
-                    onValueChange = onInputTextChange,
-                    placeholder = {
-                    if (!isFocused) {
-                        Text(placeholderText)
+                    var isTextExpanded by remember { mutableStateOf(true) }
+                    var lineCount by remember { mutableIntStateOf(0) }
+
+                    // Automatically collapse if text is very long and we're not focused
+                    // This helps when returning from Ebook activity with large text
+                    LaunchedEffect(inputText) {
+                        if (inputText.length > 500 && !isFocused) {
+                            isTextExpanded = false
+                        }
                     }
-                    },
-                    label = { Text(stringResource(R.string.input_label)) },
-                    modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(min = 200.dp)
-                    .onFocusChanged { isFocused = it.isFocused },
-                    // Increased maxLines significantly to avoid internal scrolling conflict.
-                    // This makes the cursor stay visible as the whole page scrolls instead.
-                    maxLines = 40 
-                    )
+
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box {
+                            // Hidden text to measure lines
+                            Text(
+                                text = inputText,
+                                style = LocalTextStyle.current,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(0.dp)
+                                    .alpha(0f),
+                                onTextLayout = { lineCount = it.lineCount }
+                            )
+
+                            OutlinedTextField(
+                                value = inputText,
+                                onValueChange = onInputTextChange,
+                                placeholder = {
+                                    if (!isFocused) {
+                                        Text(placeholderText)
+                                    }
+                                },
+                                label = { Text(stringResource(R.string.input_label)) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .then(
+                                        if (isTextExpanded) Modifier.heightIn(min = 200.dp)
+                                        else Modifier.heightIn(max = 130.dp)
+                                    )
+                                    .onFocusChanged {
+                                        isFocused = it.isFocused
+                                        if (it.isFocused) isTextExpanded = true
+                                    },
+                                // Increased maxLines significantly to avoid internal scrolling conflict.
+                                // This makes the cursor stay visible as the whole page scrolls instead.
+                                maxLines = if (isTextExpanded) 100 else 5
+                            )
+                        }
+
+                        if (lineCount > 5) {
+                            Text(
+                                text = if (isTextExpanded) "Show less" else "Show more (${lineCount - 5} more lines)",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier
+                                    .align(Alignment.End)
+                                    .padding(end = 8.dp)
+                                    .clickable { isTextExpanded = !isTextExpanded }
+                            )
+                        }
+                    }
 
                     // Controls Card
                     Card(

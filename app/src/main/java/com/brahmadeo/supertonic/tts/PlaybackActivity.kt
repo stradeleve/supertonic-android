@@ -34,6 +34,8 @@ class PlaybackActivity : ComponentActivity() {
     private var isPlayingState = mutableStateOf(false)
     private var isServiceActiveState = mutableStateOf(false)
     private var isExportingState = mutableStateOf(false)
+    private var exportCurrentState = mutableIntStateOf(0)
+    private var exportTotalState = mutableIntStateOf(0)
 
     // State persistence
     private var currentText = ""
@@ -60,10 +62,15 @@ class PlaybackActivity : ComponentActivity() {
 
         override fun onProgress(current: Int, total: Int) {
             runOnUiThread {
-                currentIndexState.intValue = current
-                updateIndexState(current)
-                if (total > 0 && current !in 0 until total) {
-                    clearState()
+                if (isExportingState.value) {
+                    exportCurrentState.intValue = current
+                    exportTotalState.intValue = total
+                } else {
+                    currentIndexState.intValue = current
+                    updateIndexState(current)
+                    if (total > 0 && current !in 0 until total) {
+                        clearState()
+                    }
                 }
             }
         }
@@ -77,6 +84,7 @@ class PlaybackActivity : ComponentActivity() {
 
         override fun onExportComplete(success: Boolean, path: String) {
             runOnUiThread {
+                if (!isExportingState.value) return@runOnUiThread
                 isExportingState.value = false
                 if (success) {
                     Toast.makeText(this@PlaybackActivity, getString(R.string.saved_to_fmt, path), Toast.LENGTH_LONG).show()
@@ -95,6 +103,10 @@ class PlaybackActivity : ComponentActivity() {
                 isBound = true
 
                 if (intent.getBooleanExtra("is_resume", false)) {
+                    val serviceIndex = playbackService?.getCurrentIndex() ?: -1
+                    if (serviceIndex != -1) {
+                        currentIndexState.intValue = serviceIndex
+                    }
                     restoreState()
                 } else {
                     startPlaybackFromIntent()
@@ -139,7 +151,8 @@ class PlaybackActivity : ComponentActivity() {
                     isPlaying = isPlayingState.value,
                     isServiceActive = isServiceActiveState.value,
                     isExporting = isExportingState.value,
-                    exportProgress = -1, // Indeterminate for now
+                    exportCurrent = exportCurrentState.intValue,
+                    exportTotal = exportTotalState.intValue,
                     onBackClick = { finish() },
                     onItemClick = { index -> playFromIndex(index) },
                     onPlayPauseClick = { handlePlayPause() },
@@ -147,7 +160,10 @@ class PlaybackActivity : ComponentActivity() {
                     onExportClick = { startExport() },
                     onCancelExportClick = {
                         try { playbackService?.stop() } catch (e: Exception) {}
-                        isExportingState.value = false
+                        if (isExportingState.value) {
+                            isExportingState.value = false
+                            Toast.makeText(this@PlaybackActivity, "Audio saving cancelled", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 )
             }
@@ -162,6 +178,10 @@ class PlaybackActivity : ComponentActivity() {
         if (isBound && playbackService != null) {
             try {
                 playbackService?.setListener(playbackListenerStub)
+                val serviceIndex = playbackService?.getCurrentIndex() ?: -1
+                if (serviceIndex != -1) {
+                    currentIndexState.intValue = serviceIndex
+                }
             } catch (e: RemoteException) {
                 e.printStackTrace()
             }
@@ -170,7 +190,7 @@ class PlaybackActivity : ComponentActivity() {
 
     private fun setupList(text: String) {
         val normalizer = TextNormalizer()
-        val sentences = normalizer.splitIntoSentences(text)
+        val sentences = normalizer.splitIntoSentences(text, currentLang)
         sentencesState.value = sentences
     }
 
@@ -252,7 +272,15 @@ class PlaybackActivity : ComponentActivity() {
     }
 
     private fun startExport() {
+        if (currentText.isEmpty()) {
+            Toast.makeText(this, "No text to save", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        exportCurrentState.intValue = 0
+        exportTotalState.intValue = sentencesState.value.size
         isExportingState.value = true
+
         val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val filename = "Supertonic_TTS_$timestamp.wav"
         val musicDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_MUSIC)
