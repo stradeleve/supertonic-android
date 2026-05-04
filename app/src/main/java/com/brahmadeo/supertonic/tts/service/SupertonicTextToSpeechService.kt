@@ -7,13 +7,16 @@ import android.speech.tts.TextToSpeechService
 import android.speech.tts.Voice
 import android.util.Log
 import com.brahmadeo.supertonic.tts.SupertonicTTS
-import com.brahmadeo.supertonic.tts.utils.LanguageDetector
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.util.Locale
 
 class SupertonicTextToSpeechService : TextToSpeechService() {
@@ -32,7 +35,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
         
         initJob = serviceScope.launch(Dispatchers.IO) {
             copyAssets()
-            val prefs = getSharedPreferences("SupertonicPrefs", android.content.Context.MODE_PRIVATE)
+            val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
             val savedLang = prefs.getString("selected_lang", "en") ?: "en"
             val modelVersion = if (savedLang == "en") "v1" else "v2"
 
@@ -50,7 +53,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
 
     override fun onIsLanguageAvailable(lang: String?, country: String?, variant: String?): Int {
         val language = lang?.lowercase(Locale.ROOT) ?: return TextToSpeech.LANG_NOT_SUPPORTED
-        val prefs = getSharedPreferences("SupertonicPrefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
         val selectedLang = prefs.getString("selected_lang", "en") ?: "en"
 
         // Map selectedLang to ISO 3-letter codes if necessary or just prefixes
@@ -66,7 +69,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
 
         if (!isSupported) return TextToSpeech.LANG_NOT_SUPPORTED
 
-        return if (country != null && country.isNotEmpty()) {
+        return if (!country.isNullOrEmpty()) {
             TextToSpeech.LANG_COUNTRY_AVAILABLE
         } else {
             TextToSpeech.LANG_AVAILABLE
@@ -74,7 +77,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
     }
 
     override fun onGetLanguage(): Array<String> {
-        val prefs = getSharedPreferences("SupertonicPrefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
         val selectedLang = prefs.getString("selected_lang", "en") ?: "en"
         
         return when(selectedLang) {
@@ -102,7 +105,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
     }
 
     override fun onGetDefaultVoiceNameFor(lang: String?, country: String?, variant: String?): String {
-        val prefs = getSharedPreferences("SupertonicPrefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
         val selected = prefs.getString("selected_voice", "F3.json") ?: "F3.json"
         val voiceName = if (selected.endsWith(".json")) selected.substringBeforeLast(".") else selected
         
@@ -118,7 +121,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
     }
 
     override fun onGetVoices(): List<Voice> {
-        val prefs = getSharedPreferences("SupertonicPrefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
         val selectedLang = prefs.getString("selected_lang", "en") ?: "en"
 
         val voicesList = mutableListOf<Voice>()
@@ -179,9 +182,9 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
         callback.start(SupertonicTTS.getAudioSampleRate(), android.media.AudioFormat.ENCODING_PCM_16BIT, 1)
         
         val requestedVoice = request.voiceName
-        val prefs = getSharedPreferences("SupertonicPrefs", android.content.Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
         
-        var voiceFile = if (requestedVoice != null && requestedVoice.contains("-supertonic-")) {
+        val voiceFile = if (requestedVoice != null && requestedVoice.contains("-supertonic-")) {
             val fileName = requestedVoice.substringAfter("-supertonic-")
             // Sanitize fileName to prevent path traversal
             File(fileName).name + ".json"
@@ -221,8 +224,8 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
         }
         
         try {
-            val sentences = textNormalizer.splitIntoSentences(rawText)
             val requestLang = normalizeLanguage(request.language)
+            val sentences = textNormalizer.splitIntoSentences(rawText, requestLang)
             var success = true
             for (sentence in sentences) {
                 if (SupertonicTTS.isCancelled()) { success = false; break }
@@ -230,14 +233,15 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
                 // Granular per-sentence detection
                 // val sentenceLang = LanguageDetector.detect(sentence, requestLang)
                 val sentenceLang = requestLang
-                val normalizedText = textNormalizer.normalize(sentence, sentenceLang)
+                val isAdvancedEnabled = prefs.getBoolean("is_advanced_normalization", false)
+                val normalizedText = textNormalizer.normalize(sentence, sentenceLang, isAdvancedEnabled)
 
                 val audioData = SupertonicTTS.generateAudio(normalizedText, sentenceLang, stylePath, effectiveSpeed, 0.0f, steps, VOLUME_BOOST_FACTOR, null)
 
                 if (audioData != null && audioData.isNotEmpty()) {
                     var offset = 0
                     while (offset < audioData.size) {
-                        val length = Math.min(4096, audioData.size - offset)
+                        val length = 4096.coerceAtMost(audioData.size - offset)
                         callback.audioAvailable(audioData, offset, length)
                         offset += length
                     }
@@ -258,7 +262,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
             for (filename in files) {
                 val fullAssetPath = "$assetPath/$filename"
                 val subFiles = assetManager.list(fullAssetPath)
-                if (subFiles != null && subFiles.isNotEmpty()) {
+                if (!subFiles.isNullOrEmpty()) {
                     copyDir(fullAssetPath, File(targetDir, filename))
                 } else {
                     val file = File(targetDir, filename)
@@ -266,7 +270,7 @@ class SupertonicTextToSpeechService : TextToSpeechService() {
                         assetManager.open(fullAssetPath).use { input ->
                             FileOutputStream(file).use { output -> input.copyTo(output) }
                         }
-                    } catch (e: IOException) { }
+                    } catch (_: IOException) { }
                 }
             }
         }

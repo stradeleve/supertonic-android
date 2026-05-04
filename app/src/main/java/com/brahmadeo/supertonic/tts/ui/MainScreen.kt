@@ -57,6 +57,9 @@ fun MainScreen(
     steps: Int,
     onStepsChange: (Int) -> Unit,
 
+    isAdvancedNormalizationEnabled: Boolean,
+    onAdvancedNormalizationEnabledChange: (Boolean) -> Unit,
+
     // Menu Actions
     onResetClick: () -> Unit,
     onSavedAudioClick: () -> Unit,
@@ -96,7 +99,7 @@ fun MainScreen(
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.action_lexicon)) },
                         onClick = { showMenu = false; onLexiconClick() },
-                        enabled = currentLangCode == "en"
+                        enabled = currentLangCode != "ko"
                     )
                     if (isV2Ready && currentLangCode == "en") {
                         DropdownMenuItem(
@@ -253,6 +256,27 @@ fun MainScreen(
                                 valueRange = 1f..10f,
                                 steps = 8
                             )
+                        }
+
+                        // Advanced Normalization for Romance Languages
+                        if (currentLangCode != "en" && currentLangCode != "ko") {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.advanced_normalization_label))
+                                    Text(
+                                        stringResource(R.string.advanced_normalization_desc),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = isAdvancedNormalizationEnabled,
+                                    onCheckedChange = onAdvancedNormalizationEnabledChange
+                                )
+                            }
                         }
                     }
                 }

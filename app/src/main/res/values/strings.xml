@@ -34,6 +34,13 @@
     <string name="play_now">Play Now</string>
     <string name="added_to_queue">Added to queue</string>
 
+    <string name="v2_download_title">Download Multilingual Models?</string>
+    <string name="v2_download_message">Supporting French, Spanish, Portuguese, and Korean requires an additional download (~350MB). Do you want to download it now?</string>
+    <string name="v2_download_button">Download</string>
+    <string name="v2_delete_title">Delete Multilingual Models?</string>
+    <string name="v2_delete_message">This will remove all multilingual models and voice styles to free up space (~350MB). You can download them again later if needed.</string>
+    <string name="v2_deleted_msg">Multilingual models deleted</string>
+
     <!-- Playback Activity -->
     <string name="now_playing_title">Now Playing</string>
     <string name="saving_audio">Saving Audio...</string>
@@ -85,7 +92,14 @@
     <string name="synthesize_content_description">Synthesize and play speech</string>
     <string name="input_label">Input</string>
     <string name="language_label">Language</string>
-    
+    <string name="lang_english">English</string>
+    <string name="lang_french">French</string>
+    <string name="lang_portuguese">Portuguese</string>
+    <string name="lang_spanish">Spanish</string>
+    <string name="lang_korean">Korean</string>
+    <string name="advanced_normalization_label">Advanced Normalization</string>
+    <string name="advanced_normalization_desc">Applies English-style rules for numbers, units, etc.</string>
+
     <!-- Notifications -->
     <string name="notif_synthesizing">Synthesizing...</string>
     <string name="notif_playing">Playing Audio</string>

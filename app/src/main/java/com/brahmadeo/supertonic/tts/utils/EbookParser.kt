@@ -118,7 +118,7 @@ class EbookParser(private val context: Context) {
             
             val combinedText = StringBuilder()
             for (index in pageIndices.sorted()) {
-                if (index < 0 || index >= document.numberOfPages) continue
+                if (index !in 0 until document.numberOfPages) continue
                 
                 val page = document.getPage(index)
                 val pageSize = page.cropBox
@@ -247,7 +247,7 @@ class EbookParser(private val context: Context) {
             Log.d("EbookParser", "Extracting pages: $pageIndices, isPdf=$isPdf, totalPositions=${positions.size}")
 
             for (index in pageIndices.sorted()) {
-                if (index < 0 || index >= positions.size) continue
+                if (index !in positions.indices) continue
                 
                 val locator = positions[index]
                 Log.d("EbookParser", "Page index $index locator: $locator")

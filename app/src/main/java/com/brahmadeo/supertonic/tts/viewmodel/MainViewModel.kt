@@ -20,6 +20,7 @@ class MainViewModel : ViewModel() {
     var mixAlpha = mutableFloatStateOf(0.5f)
     var currentSpeed = mutableFloatStateOf(1.1f)
     var currentSteps = mutableIntStateOf(5)
+    var isAdvancedNormalizationEnabled = mutableStateOf(false)
 
     // Mini Player State
     var showMiniPlayer = mutableStateOf(false)

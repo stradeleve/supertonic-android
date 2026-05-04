@@ -207,21 +207,29 @@ class TextNormalizer {
         }
     }
 
-    fun normalize(text: String, lang: String = "en"): String {
-        // EARLY EXIT for non-English
-        // We skip Lexicon and all normalization for non-English languages for now
-        // to prevent English-specific rules from mangling other scripts (e.g. Korean).
-        if (!lang.lowercase().startsWith("en")) {
-            return text
+    fun normalize(text: String, lang: String = "en", isAdvancedEnabled: Boolean = false): String {
+        val lowerLang = lang.lowercase()
+        
+        // 1. Lexicon applies to all languages except Korean
+        val processedText = if (lowerLang != "ko") {
+            LexiconManager.apply(text)
+        } else {
+            text
         }
 
-        // Step -1: Apply User Lexicon
-        val lexText = LexiconManager.apply(text)
+        // 2. Determine if we should apply English-style normalization rules
+        // Currently: Always for English, or if toggle is on for Romance languages
+        val isRomance = lowerLang.startsWith("fr") || lowerLang.startsWith("es") || lowerLang.startsWith("pt")
+        val shouldNormalize = lowerLang.startsWith("en") || (isRomance && isAdvancedEnabled)
+
+        if (!shouldNormalize) {
+            return processedText
+        }
 
         // Step 0: Fix smushed text from webpage layouts
         // Fix smushed sentences: lowercase char, period, uppercase char (reserved.Reuse)
         val smushedSentencePattern = Pattern.compile("([a-z])\\.([A-Z])")
-        var fixedText = smushedSentencePattern.matcher(lexText).replaceAll("$1. $2")
+        var fixedText = smushedSentencePattern.matcher(processedText).replaceAll("$1. $2")
         
         // Fix smushed words: lowercase char, uppercase char (economyIMF)
         val smushedWordPattern1 = Pattern.compile("([a-z])([A-Z])")
@@ -264,7 +272,7 @@ class TextNormalizer {
                     NumberUtils.convert(numStr.toLong())
                 }
                 matcher.appendReplacement(sb, replacement)
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // If number is too large for Long, keep it as digits (or implement BigInt logic if needed)
                 // For TTS, massive numbers usually read digit-by-digit anyway
                 matcher.appendReplacement(sb, numStr)
@@ -276,7 +284,7 @@ class TextNormalizer {
         return normalized
     }
 
-    fun splitIntoSentences(text: String): List<String> {
+    fun splitIntoSentences(text: String, lang: String = "en"): List<String> {
         val abbreviations = listOf(
             "Mr.", "Mrs.", "Dr.", "Ms.", "Prof.", "Sr.", "Jr.", 
             "etc.", "vs.", "e.g.", "i.e.",
@@ -299,22 +307,22 @@ class TextNormalizer {
         // OLD: (?<=[.!?])['"”’]?\\s+
         // NEW: (?<=[.!?]['"”’]?)\\s+
         // We also use a more specific lookahead to detect start of next sentence
-        val pattern = Pattern.compile("(?<=[.!?]['\"”’]?)\\s+(?=['\"“‘]?[\\p{L}\\d])|(?<=[;])\\s+")
+        val pattern = Pattern.compile("(?<=[.!?]['\"”’]?)\\s+(?=['\"“‘]?[\\p{L}\\d])|(?<=;)\\s+")
         val rawSentences = protectedText.split(pattern)
         
         val refinedSentences = mutableListOf<String>()
-        val MAX_LENGTH = 300
+        val maxLength = 300
 
         for (raw in rawSentences) {
-            if (raw.length <= MAX_LENGTH) {
+            if (raw.length <= maxLength) {
                 refinedSentences.add(raw)
             } else {
                 // Split long sentences by comma if they are too long
                 val subParts = raw.split(Pattern.compile("(?<=,)\\s+"))
-                var currentPart = StringBuilder()
+                val currentPart = StringBuilder()
                 
                 for (part in subParts) {
-                    if (currentPart.length + part.length < MAX_LENGTH) {
+                    if (currentPart.length + part.length < maxLength) {
                         if (currentPart.isNotEmpty()) currentPart.append(" ")
                         currentPart.append(part)
                     } else {
@@ -345,10 +353,10 @@ class TextNormalizer {
             restored.trim()
         }.filter { it.isNotEmpty() }
 
-        // Chunking Logic: Accumulate sentences up to MAX_LENGTH (300)
+        // Chunking Logic: Accumulate sentences up to chunkLimit (300)
         val chunkedSentences = mutableListOf<String>()
-        var currentChunk = StringBuilder()
-        val CHUNK_LIMIT = 300
+        val currentChunk = StringBuilder()
+        val chunkLimit = 300
 
         var i = 0
         while (i < processedSentences.size) {
@@ -356,11 +364,13 @@ class TextNormalizer {
             
             // Universal Volatile/Punctuation Fix:
             // Always insert space before !, ?, ,, ; to stabilize audio
-            // Matches punctuation followed by optional quote/whitespace at end
-            sentence = sentence.replaceFirst(Regex("([!?,;])(['\"”’]?)\\s*$"), " $1$2")
+            // DISABLED for Korean
+            if (!lang.lowercase().startsWith("ko")) {
+                sentence = sentence.replaceFirst(Regex("([!?,;])(['\"”’]?)\\s*$"), " $1$2")
+            }
 
             // HANDLE STABLE SENTENCE (Standard Accumulation)
-            if (currentChunk.length + sentence.length + 1 <= CHUNK_LIMIT) {
+            if (currentChunk.length + sentence.length + 1 <= chunkLimit) {
                 if (currentChunk.isNotEmpty()) {
                     currentChunk.append(" ")
                 }
@@ -371,7 +381,7 @@ class TextNormalizer {
                     currentChunk.clear()
                 }
                 // If a single sentence is huge, add it directly
-                if (sentence.length > CHUNK_LIMIT) {
+                if (sentence.length > chunkLimit) {
                     chunkedSentences.add(sentence)
                 } else {
                     currentChunk.append(sentence)

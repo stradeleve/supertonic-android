@@ -29,6 +29,13 @@
     <string name="delete">Supprimer</string>
     <string name="ok">OK</string>
 
+    <string name="v2_download_title">Télécharger les modèles multilingues ?</string>
+    <string name="v2_download_message">La prise en charge du français, de l\'espagnol, du portugais et du coréen nécessite un téléchargement supplémentaire (~350 Mo). Voulez-vous le télécharger maintenant ?</string>
+    <string name="v2_download_button">Télécharger</string>
+    <string name="v2_delete_title">Supprimer les modèles multilingues ?</string>
+    <string name="v2_delete_message">Cela supprimera tous les modèles multilingues et styles de voix pour libérer de l\'espace (~350 Mo). Vous pourrez les télécharger à nouveau plus tard si nécessaire.</string>
+    <string name="v2_deleted_msg">Modèles multilingues supprimés</string>
+
     <!-- Playback Activity -->
     <string name="now_playing_title">Lecture en cours</string>
     <string name="saving_audio">Enregistrement de l\'audio...</string>
@@ -70,6 +77,7 @@
     <string name="action_open_ebook">Ouvrir un livre électronique (EPUB/PDF)</string>
     <string name="action_saved">Audio enregistré</string>
     <string name="action_history">Historique</string>
+    <string name="action_queue">File d\'attente</string>
     <string name="action_lexicon">Lexique</string>
     <string name="action_delete_v2">Supprimer les modèles multilingues</string>
     <string name="action_import">Importer JSON</string>
@@ -78,7 +86,14 @@
     <string name="synthesize_content_description">Synthétiser et lire la parole</string>
     <string name="input_label">Entrée</string>
     <string name="language_label">Langue</string>
-    
+    <string name="lang_english">Anglais</string>
+    <string name="lang_french">Français</string>
+    <string name="lang_portuguese">Portugais</string>
+    <string name="lang_spanish">Espagnol</string>
+    <string name="lang_korean">Coréen</string>
+    <string name="advanced_normalization_label">Normalisation avancée</string>
+    <string name="advanced_normalization_desc">Applique les règles de type anglais pour les nombres, les unités, etc.</string>
+
     <!-- Notifications -->
     <string name="notif_synthesizing">Synthèse en cours...</string>
     <string name="notif_playing">Lecture audio</string>

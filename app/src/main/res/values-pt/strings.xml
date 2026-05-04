@@ -29,6 +29,13 @@
     <string name="delete">Excluir</string>
     <string name="ok">OK</string>
 
+    <string name="v2_download_title">Baixar modelos multilíngues?</string>
+    <string name="v2_download_message">O suporte para francês, espanhol, português e coreano requer um download adicional (~350 MB). Deseja baixá-lo agora?</string>
+    <string name="v2_download_button">Baixar</string>
+    <string name="v2_delete_title">Excluir modelos multilíngues?</string>
+    <string name="v2_delete_message">Isso removerá todos os modelos multilíngues e estilos de voz para liberar espaço (~350 MB). Você pode baixá-los novamente mais tarde, se necessário.</string>
+    <string name="v2_deleted_msg">Modelos multilíngues excluídos</string>
+
     <!-- Playback Activity -->
     <string name="now_playing_title">Reproduzindo agora</string>
     <string name="saving_audio">Salvando áudio...</string>
@@ -70,6 +77,7 @@
     <string name="action_open_ebook">Abrir ebook (EPUB/PDF)</string>
     <string name="action_saved">Áudio salvo</string>
     <string name="action_history">Histórico</string>
+    <string name="action_queue">Fila</string>
     <string name="action_lexicon">Léxico</string>
     <string name="action_delete_v2">Excluir modelos bilíngues</string>
     <string name="action_import">Importar JSON</string>
@@ -78,6 +86,11 @@
     <string name="synthesize_content_description">Sintetizar e reproduzir fala</string>
     <string name="input_label">Entrada</string>
     <string name="language_label">Idioma</string>
+    <string name="lang_english">Inglês</string>
+    <string name="lang_french">Francês</string>
+    <string name="lang_portuguese">Português</string>
+    <string name="lang_spanish">Espanhol</string>
+    <string name="lang_korean">Coreano</string>
     
     <!-- Notifications -->
     <string name="notif_synthesizing">Sintetizando...</string>

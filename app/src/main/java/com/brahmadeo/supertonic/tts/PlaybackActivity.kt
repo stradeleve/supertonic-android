@@ -62,7 +62,7 @@ class PlaybackActivity : ComponentActivity() {
             runOnUiThread {
                 currentIndexState.intValue = current
                 updateIndexState(current)
-                if (total > 0 && current >= total) {
+                if (total > 0 && current !in 0 until total) {
                     clearState()
                 }
             }

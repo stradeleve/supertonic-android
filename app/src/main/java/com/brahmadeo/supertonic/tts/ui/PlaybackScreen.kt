@@ -41,7 +41,7 @@ fun PlaybackScreen(
 
     // Auto-scroll to current index
     LaunchedEffect(currentIndex) {
-        if (currentIndex >= 0 && currentIndex < sentences.size) {
+        if (currentIndex in sentences.indices) {
             listState.animateScrollToItem(currentIndex)
         }
     }
