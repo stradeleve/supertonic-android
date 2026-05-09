@@ -1,10 +1,7 @@
 package com.brahmadeo.supertonic.tts
-
-import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
-import android.net.Uri
 import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.widget.Toast
@@ -15,38 +12,63 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.SecondaryTabRow
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.brahmadeo.supertonic.tts.ui.theme.SupertonicTheme
 import com.brahmadeo.supertonic.tts.utils.EbookManager
@@ -61,7 +83,7 @@ import org.readium.r2.shared.publication.services.positions
 import org.readium.r2.shared.util.mediatype.MediaType
 import java.io.File
 import kotlin.math.max
-import kotlin.math.roundToInt
+import androidx.core.graphics.createBitmap
 
 class EbookOutlineActivity : ComponentActivity() {
 
@@ -138,12 +160,12 @@ class EbookOutlineActivity : ComponentActivity() {
                         title = { Text(publication?.metadata?.title ?: "Ebook Details") },
                         navigationIcon = {
                             IconButton(onClick = onBack) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                             }
                         }
                     )
                     if (!isLoading && publication != null) {
-                        TabRow(selectedTabIndex = selectedTabIndex) {
+                        SecondaryTabRow(selectedTabIndex = selectedTabIndex) {
                             Tab(
                                 selected = selectedTabIndex == 0,
                                 onClick = { selectedTabIndex = 0 },
@@ -342,6 +364,10 @@ class EbookOutlineActivity : ComponentActivity() {
         onDismiss: () -> Unit,
         onLoadPage: (Int) -> Unit
     ) {
+        val windowInfo = LocalWindowInfo.current
+        val density = LocalDensity.current
+        val maxHeight = with(density) { windowInfo.containerSize.height.toDp() }
+
         var thumbnail by remember { mutableStateOf<Bitmap?>(null) }
         var isLoadingPreview by remember { mutableStateOf(true) }
 
@@ -356,7 +382,7 @@ class EbookOutlineActivity : ComponentActivity() {
                     val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                     val renderer = PdfRenderer(pfd)
                     val page = renderer.openPage(pageIndex)
-                    val bitmap = Bitmap.createBitmap(page.width, page.height, Bitmap.Config.ARGB_8888)
+                    val bitmap = createBitmap(page.width, page.height)
                     page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     thumbnail = bitmap
                     page.close()
@@ -389,7 +415,7 @@ class EbookOutlineActivity : ComponentActivity() {
                         Image(
                             bitmap = thumbnail!!.asImageBitmap(),
                             contentDescription = "Page ${pageIndex + 1}",
-                            modifier = Modifier.fillMaxWidth().heightIn(max = LocalConfiguration.current.screenHeightDp.dp * 0.6f),
+                            modifier = Modifier.fillMaxWidth().heightIn(max = maxHeight * 0.6f),
                             contentScale = ContentScale.FillWidth
                         )
                     } else if (!isPdf) {
@@ -441,7 +467,7 @@ class EbookOutlineActivity : ComponentActivity() {
                         val pfd = ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY)
                         val renderer = PdfRenderer(pfd)
                         val page = renderer.openPage(pageIndex)
-                        val bitmap = Bitmap.createBitmap(300, 400, Bitmap.Config.ARGB_8888)
+                        val bitmap = createBitmap(300, 400)
                         page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                         thumbnail = bitmap
                         page.close()

@@ -470,12 +470,7 @@ class MainActivity : ComponentActivity() {
     private fun getLocalizedResource(context: Context, lang: String, resId: Int): String {
         val locale = java.util.Locale.forLanguageTag(lang)
         val config = android.content.res.Configuration(context.resources.configuration)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            config.setLocales(android.os.LocaleList(locale))
-        } else {
-            @Suppress("DEPRECATION")
-            config.setLocale(locale)
-        }
+        config.setLocales(android.os.LocaleList(locale))
         val localizedContext = context.createConfigurationContext(config)
         return localizedContext.resources.getString(resId)
     }

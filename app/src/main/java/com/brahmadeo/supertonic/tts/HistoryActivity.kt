@@ -19,7 +19,7 @@ class HistoryActivity : ComponentActivity() {
                     onItemClick = { item ->
                         val resultIntent = Intent()
                         resultIntent.putExtra("selected_text", item.text)
-                        setResult(Activity.RESULT_OK, resultIntent)
+                        setResult(RESULT_OK, resultIntent)
                         finish()
                     }
                 )
