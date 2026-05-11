@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.LibraryBooks
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.automirrored.filled.QueueMusic
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Settings
@@ -78,6 +79,9 @@ fun MainScreen(
     onDeleteV2Click: () -> Unit,
     onOpenEbookClick: () -> Unit,
     isV2Ready: Boolean,
+
+    canResume: Boolean,
+    onResumeClick: () -> Unit,
 
     showMiniPlayer: Boolean,
     miniPlayerTitle: String,
@@ -154,21 +158,40 @@ fun MainScreen(
             val isLoading = isInitializing || isSynthesizing
             val synthesizeContentDesc = stringResource(AppR.string.synthesize_content_description)
 
-            ExtendedFloatingActionButton(
-                onClick = onSynthesizeClick,
-                text = { Text(buttonText) },
-                icon = { Icon(painterResource(android.R.drawable.ic_btn_speak_now), contentDescription = null) },
-                expanded = true,
-                containerColor = if (isLoading) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
-                contentColor = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.semantics {
-                    contentDescription = synthesizeContentDesc
-                    stateDescription = buttonText
-                    if (isLoading) {
-                        disabled()
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (canResume && !isLoading) {
+                    val resumeContentDesc = stringResource(AppR.string.resume_content_description)
+                    SmallFloatingActionButton(
+                        onClick = onResumeClick,
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.semantics {
+                            contentDescription = resumeContentDesc
+                        }
+                    ) {
+                        Icon(Icons.Default.Refresh, contentDescription = null)
                     }
                 }
-            )
+
+                ExtendedFloatingActionButton(
+                    onClick = onSynthesizeClick,
+                    text = { Text(buttonText) },
+                    icon = { Icon(painterResource(android.R.drawable.ic_btn_speak_now), contentDescription = null) },
+                    expanded = true,
+                    containerColor = if (isLoading) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = if (isLoading) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.semantics {
+                        contentDescription = synthesizeContentDesc
+                        stateDescription = buttonText
+                        if (isLoading) {
+                            disabled()
+                        }
+                    }
+                )
+            }
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
@@ -548,6 +571,8 @@ fun MainScreenPreview() {
             onDeleteV2Click = {},
             onOpenEbookClick = {},
             isV2Ready = true,
+            canResume = true,
+            onResumeClick = {},
             showMiniPlayer = true,
             miniPlayerTitle = "Now playing sample text",
             miniPlayerIsPlaying = true,

@@ -10,8 +10,8 @@
     <string name="speed_label">속도</string>
     <string name="quality_label">품질</string>
     <string name="synthesize_button">음성 합성</string>
-    <string name="loading_engine">엔진 로딩 중...</string>
-    <string name="initializing">초기화 중...</string>
+    <string name="loading_engine">엔진 로딩 중…</string>
+    <string name="initializing">초기화 중…</string>
     <string name="ready_soc_fmt">준비됨 (SoC: %1$s)</string>
     <string name="init_failed">초기화 실패</string>
     <string name="engine_error">엔진 오류</string>
@@ -21,6 +21,8 @@
     <string name="fetched_web_text">가져온 웹 텍스트</string>
     <string name="resume_title">재생을 재개할까요?</string>
     <string name="resume_message">중단된 지점부터 계속 읽으시겠습니까?</string>
+    <string name="resume_button">재개</string>
+    <string name="resume_content_description">마지막 재생 재개</string>
     <string name="play_selected_title">선택한 텍스트를 재생할까요?</string>
     <string name="play_selected_message">이 텍스트의 음성 합성을 즉시 시작하시겠습니까?</string>
     <string name="yes">예</string>
@@ -28,6 +30,11 @@
     <string name="cancel">취소</string>
     <string name="delete">삭제</string>
     <string name="ok">확인</string>
+    <string name="playback_active_title">재생 중</string>
+    <string name="playback_active_message">오디오가 현재 재생 중입니다. 이 텍스트를 대기열에 추가하시겠습니까, 아니면 즉시 재생하시겠습니까?</string>
+    <string name="add_to_queue">대기열에 추가</string>
+    <string name="play_now">즉시 재생</string>
+    <string name="added_to_queue">대기열에 추가됨</string>
 
     <string name="v2_download_title">다국어 모델을 다운로드할까요?</string>
     <string name="v2_download_message">프랑스어, 스페인어, 포르투갈어 및 한국어를 지원하려면 추가 다운로드(~350MB)가 필요합니다. 지금 다운로드하시겠습니까?</string>
@@ -38,7 +45,7 @@
 
     <!-- Playback Activity -->
     <string name="now_playing_title">현재 재생 중</string>
-    <string name="saving_audio">오디오 저장 중...</string>
+    <string name="saving_audio">오디오 저장 중…</string>
     <string name="saved_to_fmt">%1$s에 저장됨</string>
     <string name="export_failed">내보내기 실패</string>
 
@@ -61,6 +68,7 @@
     <string name="replacement_hint">대체 발음 (예: 엘 엘 엠즈)</string>
     <string name="ignore_case_label">대소문자 무시</string>
     <string name="test_button">테스트</string>
+    <string name="testing_pronunciation_fmt">%1$s의 발음 테스트 중</string>
     <string name="save_button">저장</string>
     <string name="enter_replacement_msg">테스트할 대체 발음을 입력하세요</string>
     <string name="empty_fields_msg">단어와 대체 발음은 비워둘 수 없습니다</string>
@@ -93,12 +101,14 @@
     <string name="lang_portuguese">포르투갈어</string>
     <string name="lang_spanish">스페인어</string>
     <string name="lang_korean">한국어</string>
-    
+    <string name="advanced_normalization_label">고급 정규화</string>
+    <string name="advanced_normalization_desc">숫자, 단위 등에 대해 영어식 규칙을 적용합니다.</string>
+
     <!-- Notifications -->
-    <string name="notif_synthesizing">음성 합성 중...</string>
+    <string name="notif_synthesizing">음성 합성 중…</string>
     <string name="notif_playing">오디오 재생 중</string>
     <string name="notif_paused">일시 정지됨</string>
-    <string name="notif_exporting">오디오 내보내는 중...</string>
+    <string name="notif_exporting">오디오 내보내는 중…</string>
 
     <!-- Voices -->
     <string name="voice_m1">Alex - 활기차고 경쾌한</string>

@@ -10,8 +10,8 @@
     <string name="speed_label">Velocidad</string>
     <string name="quality_label">Calidad</string>
     <string name="synthesize_button">Sintetizar</string>
-    <string name="loading_engine">Cargando motor...</string>
-    <string name="initializing">Inicializando...</string>
+    <string name="loading_engine">Cargando motor…</string>
+    <string name="initializing">Inicializando…</string>
     <string name="ready_soc_fmt">Listo (SoC: %1$s)</string>
     <string name="init_failed">Error de inicialización</string>
     <string name="engine_error">Error del motor</string>
@@ -21,6 +21,8 @@
     <string name="fetched_web_text">Texto web obtenido</string>
     <string name="resume_title">¿Reanudar reproducción?</string>
     <string name="resume_message">¿Le gustaría continuar leyendo desde donde lo dejó?</string>
+    <string name="resume_button">Reanudar</string>
+    <string name="resume_content_description">Reanudar última reproducción</string>
     <string name="play_selected_title">¿Reproducir texto seleccionado?</string>
     <string name="play_selected_message">¿Desea iniciar la síntesis de este texto de inmediato?</string>
     <string name="yes">Sí</string>
@@ -28,6 +30,11 @@
     <string name="cancel">Cancelar</string>
     <string name="delete">Eliminar</string>
     <string name="ok">Aceptar</string>
+    <string name="playback_active_title">Reproducción activa</string>
+    <string name="playback_active_message">El audio se está reproduciendo actualmente. ¿Desea añadir este texto a la cola o reproducirlo de inmediato?</string>
+    <string name="add_to_queue">Añadir a la cola</string>
+    <string name="play_now">Reproducir ahora</string>
+    <string name="added_to_queue">Añadido a la cola</string>
 
     <string name="v2_download_title">¿Descargar modelos multilingües?</string>
     <string name="v2_download_message">El soporte para francés, español, portugués y coreano requiere una descarga adicional (~350 MB). ¿Desea descargarlo ahora?</string>
@@ -38,7 +45,7 @@
 
     <!-- Playback Activity -->
     <string name="now_playing_title">Reproduciendo ahora</string>
-    <string name="saving_audio">Guardando audio...</string>
+    <string name="saving_audio">Guardando audio…</string>
     <string name="saved_to_fmt">Guardado en %1$s</string>
     <string name="export_failed">Error al exportar</string>
 
@@ -61,6 +68,7 @@
     <string name="replacement_hint">Reemplazo (ej. L L Ems)</string>
     <string name="ignore_case_label">Ignorar mayúsculas</string>
     <string name="test_button">Probar</string>
+    <string name="testing_pronunciation_fmt">Probando la pronunciación de %1$s</string>
     <string name="save_button">Guardar</string>
     <string name="enter_replacement_msg">Introduzca un reemplazo para probar</string>
     <string name="empty_fields_msg">El término y el reemplazo no pueden estar vacíos</string>
@@ -81,7 +89,7 @@
     <string name="action_history">Historial</string>
     <string name="action_queue">Cola</string>
     <string name="action_lexicon">Léxico</string>
-    <string name="action_delete_v2">Eliminar modelos bilingües</string>
+    <string name="action_delete_v2">Eliminar modelos multilingües</string>
     <string name="action_import">Importar JSON</string>
     <string name="action_export">Exportar JSON</string>
     
@@ -93,12 +101,14 @@
     <string name="lang_portuguese">Portugués</string>
     <string name="lang_spanish">Español</string>
     <string name="lang_korean">Coreano</string>
-    
+    <string name="advanced_normalization_label">Normalización avanzada</string>
+    <string name="advanced_normalization_desc">Aplica reglas de estilo inglés para números, unidades, etc.</string>
+
     <!-- Notifications -->
-    <string name="notif_synthesizing">Sintetizando...</string>
+    <string name="notif_synthesizing">Sintetizando…</string>
     <string name="notif_playing">Reproduciendo audio</string>
     <string name="notif_paused">En pausa</string>
-    <string name="notif_exporting">Exportando audio...</string>
+    <string name="notif_exporting">Exportando audio…</string>
 
     <!-- Voices -->
     <string name="voice_m1">Alex - Animado, Optimista</string>

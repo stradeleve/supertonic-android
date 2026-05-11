@@ -10,8 +10,8 @@
     <string name="speed_label">Velocidade</string>
     <string name="quality_label">Qualidade</string>
     <string name="synthesize_button">Sintetizar</string>
-    <string name="loading_engine">Carregando motor...</string>
-    <string name="initializing">Inicializando...</string>
+    <string name="loading_engine">Carregando motor…</string>
+    <string name="initializing">Inicializando…</string>
     <string name="ready_soc_fmt">Pronto (SoC: %1$s)</string>
     <string name="init_failed">Falha na inicialização</string>
     <string name="engine_error">Erro do motor</string>
@@ -21,6 +21,8 @@
     <string name="fetched_web_text">Texto web obtido</string>
     <string name="resume_title">Retomar reprodução?</string>
     <string name="resume_message">Deseja continuar lendo de onde parou?</string>
+    <string name="resume_button">Retomar</string>
+    <string name="resume_content_description">Retomar última reprodução</string>
     <string name="play_selected_title">Reproduzir texto selecionado?</string>
     <string name="play_selected_message">Deseja iniciar a síntese deste texto imediatamente?</string>
     <string name="yes">Sim</string>
@@ -28,6 +30,11 @@
     <string name="cancel">Cancelar</string>
     <string name="delete">Excluir</string>
     <string name="ok">OK</string>
+    <string name="playback_active_title">Reprodução ativa</string>
+    <string name="playback_active_message">O áudio está sendo reproduzido no momento. Deseja adicionar este texto à fila ou reproduzi-lo imediatamente?</string>
+    <string name="add_to_queue">Adicionar à fila</string>
+    <string name="play_now">Reproduzir agora</string>
+    <string name="added_to_queue">Adicionado à fila</string>
 
     <string name="v2_download_title">Baixar modelos multilíngues?</string>
     <string name="v2_download_message">O suporte para francês, espanhol, português e coreano requer um download adicional (~350 MB). Deseja baixá-lo agora?</string>
@@ -38,7 +45,7 @@
 
     <!-- Playback Activity -->
     <string name="now_playing_title">Reproduzindo agora</string>
-    <string name="saving_audio">Salvando áudio...</string>
+    <string name="saving_audio">Salvando áudio…</string>
     <string name="saved_to_fmt">Salvo em %1$s</string>
     <string name="export_failed">Falha na exportação</string>
 
@@ -60,6 +67,7 @@
     <string name="replacement_hint">Substituição (ex. L L Ems)</string>
     <string name="ignore_case_label">Ignorar maiúsculas</string>
     <string name="test_button">Testar</string>
+    <string name="testing_pronunciation_fmt">Testando pronúncia de %1$s</string>
     <string name="save_button">Salvar</string>
     <string name="enter_replacement_msg">Digite uma substituição para testar</string>
     <string name="empty_fields_msg">O termo e a substituição não podem estar vazios</string>
@@ -79,7 +87,7 @@
     <string name="action_history">Histórico</string>
     <string name="action_queue">Fila</string>
     <string name="action_lexicon">Léxico</string>
-    <string name="action_delete_v2">Excluir modelos bilíngues</string>
+    <string name="action_delete_v2">Excluir modelos multilíngues</string>
     <string name="action_import">Importar JSON</string>
     <string name="action_export">Exportar JSON</string>
     
@@ -91,12 +99,14 @@
     <string name="lang_portuguese">Português</string>
     <string name="lang_spanish">Espanhol</string>
     <string name="lang_korean">Coreano</string>
-    
+    <string name="advanced_normalization_label">Normalização avançada</string>
+    <string name="advanced_normalization_desc">Aplica regras de estilo inglês para números, unidades, etc.</string>
+
     <!-- Notifications -->
-    <string name="notif_synthesizing">Sintetizando...</string>
+    <string name="notif_synthesizing">Sintetizando…</string>
     <string name="notif_playing">Reproduzindo áudio</string>
     <string name="notif_paused">Pausado</string>
-    <string name="notif_exporting">Exportando áudio...</string>
+    <string name="notif_exporting">Exportando áudio…</string>
 
     <!-- Voices -->
     <string name="voice_m1">Alex - Animado, Otimista</string>

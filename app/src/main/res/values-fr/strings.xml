@@ -10,8 +10,8 @@
     <string name="speed_label">Vitesse</string>
     <string name="quality_label">Qualité</string>
     <string name="synthesize_button">Synthétiser</string>
-    <string name="loading_engine">Chargement du moteur...</string>
-    <string name="initializing">Initialisation...</string>
+    <string name="loading_engine">Chargement du moteur…</string>
+    <string name="initializing">Initialisation…</string>
     <string name="ready_soc_fmt">Prêt (SoC : %1$s)</string>
     <string name="init_failed">Échec de l\'initialisation</string>
     <string name="engine_error">Erreur moteur</string>
@@ -21,6 +21,8 @@
     <string name="fetched_web_text">Texte web récupéré</string>
     <string name="resume_title">Reprendre la lecture ?</string>
     <string name="resume_message">Souhaitez-vous continuer la lecture là où vous vous étiez arrêté ?</string>
+    <string name="resume_button">Reprendre</string>
+    <string name="resume_content_description">Reprendre la dernière lecture</string>
     <string name="play_selected_title">Lire le texte sélectionné ?</string>
     <string name="play_selected_message">Souhaitez-vous lancer la synthèse de ce texte immédiatement ?</string>
     <string name="yes">Oui</string>
@@ -28,6 +30,11 @@
     <string name="cancel">Annuler</string>
     <string name="delete">Supprimer</string>
     <string name="ok">OK</string>
+    <string name="playback_active_title">Lecture active</string>
+    <string name="playback_active_message">L\'audio est en cours de lecture. Souhaitez-vous ajouter ce texte à la file d\'attente ou le lire immédiatement ?</string>
+    <string name="add_to_queue">Ajouter à la file d\'attente</string>
+    <string name="play_now">Lire maintenant</string>
+    <string name="added_to_queue">Ajouté à la file d\'attente</string>
 
     <string name="v2_download_title">Télécharger les modèles multilingues ?</string>
     <string name="v2_download_message">La prise en charge du français, de l\'espagnol, du portugais et du coréen nécessite un téléchargement supplémentaire (~350 Mo). Voulez-vous le télécharger maintenant ?</string>
@@ -38,7 +45,7 @@
 
     <!-- Playback Activity -->
     <string name="now_playing_title">Lecture en cours</string>
-    <string name="saving_audio">Enregistrement de l\'audio...</string>
+    <string name="saving_audio">Enregistrement de l\'audio…</string>
     <string name="saved_to_fmt">Enregistré sous %1$s</string>
     <string name="export_failed">Échec de l\'exportation</string>
 
@@ -60,6 +67,7 @@
     <string name="replacement_hint">Remplacement (ex. L L Ems)</string>
     <string name="ignore_case_label">Ignorer la casse</string>
     <string name="test_button">Tester</string>
+    <string name="testing_pronunciation_fmt">Test de la prononciation de %1$s</string>
     <string name="save_button">Enregistrer</string>
     <string name="enter_replacement_msg">Entrez un remplacement pour tester</string>
     <string name="empty_fields_msg">Le terme et le remplacement ne peuvent pas être vides</string>
@@ -95,10 +103,10 @@
     <string name="advanced_normalization_desc">Applique les règles de type anglais pour les nombres, les unités, etc.</string>
 
     <!-- Notifications -->
-    <string name="notif_synthesizing">Synthèse en cours...</string>
+    <string name="notif_synthesizing">Synthèse en cours…</string>
     <string name="notif_playing">Lecture audio</string>
     <string name="notif_paused">En pause</string>
-    <string name="notif_exporting">Exportation audio...</string>
+    <string name="notif_exporting">Exportation audio…</string>
 
     <!-- Voices -->
     <string name="voice_m1">Alex - Vif, Enjoué</string>

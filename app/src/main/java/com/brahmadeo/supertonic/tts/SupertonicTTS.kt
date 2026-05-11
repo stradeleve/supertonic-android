@@ -5,6 +5,7 @@ import java.util.concurrent.atomic.AtomicReference
 
 object SupertonicTTS {
     private var nativePtr: Long = 0
+    private var currentModelPath: String? = null
 
     init {
         try {
@@ -23,12 +24,23 @@ object SupertonicTTS {
     private external fun reset(ptr: Long)
 
     @Synchronized
+    fun isInitialized(modelPath: String): Boolean {
+        if (nativePtr == 0L || currentModelPath != modelPath) return false
+        return getSocClass(nativePtr) != -1
+    }
+
+    @Synchronized
     fun initialize(modelPath: String, libPath: String, ortThreads: Int = 4, xnnThreads: Int = 1): Boolean {
         if (nativePtr != 0L) {
             // Health check: Can we still talk to the engine?
             if (getSocClass(nativePtr) != -1) {
-                Log.i("SupertonicTTS", "Engine already initialized and healthy")
-                return true
+                if (currentModelPath == modelPath) {
+                    Log.i("SupertonicTTS", "Engine already initialized and healthy for this path: $modelPath")
+                    return true
+                } else {
+                    Log.i("SupertonicTTS", "Model path changed ($currentModelPath -> $modelPath). Re-initializing...")
+                    release()
+                }
             } else {
                 Log.w("SupertonicTTS", "Engine pointer exists but is unhealthy. Re-initializing...")
                 release()
@@ -38,8 +50,10 @@ object SupertonicTTS {
         nativePtr = init(modelPath, libPath, ortThreads, xnnThreads)
         val success = nativePtr != 0L
         if (success) {
-            Log.i("SupertonicTTS", "Engine initialized successfully (ORT: $ortThreads, XNN: $xnnThreads): $nativePtr")
+            currentModelPath = modelPath
+            Log.i("SupertonicTTS", "Engine initialized successfully (ORT: $ortThreads, XNN: $xnnThreads) with model: $modelPath")
         } else {
+            currentModelPath = null
             Log.e("SupertonicTTS", "Engine initialization FAILED")
         }
         return success

@@ -7,6 +7,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import androidx.core.content.edit
 
 data class RecentBook(
     val title: String,
@@ -52,9 +53,9 @@ object EbookManager {
             }
             
             context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-                .edit()
-                .putString(KEY_RECENT_BOOKS, jsonArray.toString())
-                .apply()
+                .edit {
+                    putString(KEY_RECENT_BOOKS, jsonArray.toString())
+                }
         } catch (e: Exception) {
             e.printStackTrace()
         }

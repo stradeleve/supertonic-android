@@ -37,6 +37,7 @@ import java.util.Locale
 
 import androidx.compose.ui.tooling.preview.Preview
 import com.brahmadeo.supertonic.tts.ui.theme.SupertonicTheme
+import androidx.compose.ui.platform.LocalLocale
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -294,7 +295,7 @@ fun HistoryItemRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Text(
-                        text = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(item.timestamp)),
+                        text = SimpleDateFormat("HH:mm", LocalLocale.current.platformLocale).format(Date(item.timestamp)),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

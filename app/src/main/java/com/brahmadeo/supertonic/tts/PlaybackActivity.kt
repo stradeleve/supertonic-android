@@ -22,6 +22,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.core.content.edit
 
 class PlaybackActivity : ComponentActivity() {
 
@@ -262,26 +263,26 @@ class PlaybackActivity : ComponentActivity() {
     }
 
     private fun saveState() {
-        getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).edit()
-            .putString("last_text", currentText)
-            .putString("last_voice_path", currentVoicePath)
-            .putFloat("last_speed", currentSpeed)
-            .putInt("last_steps", currentSteps)
-            .putString("last_lang", currentLang)
-            .putBoolean("is_playing", true)
-            .apply()
+        getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).edit {
+            putString("last_text", currentText)
+                .putString("last_voice_path", currentVoicePath)
+                .putFloat("last_speed", currentSpeed)
+                .putInt("last_steps", currentSteps)
+                .putString("last_lang", currentLang)
+                .putBoolean("is_playing", true)
+        }
     }
 
     private fun updateIndexState(index: Int) {
-        getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).edit()
-            .putInt("last_index", index)
-            .apply()
+        getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).edit {
+            putInt("last_index", index)
+        }
     }
 
     private fun clearState() {
-        getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).edit()
-            .putBoolean("is_playing", false)
-            .apply()
+        getSharedPreferences("SupertonicPrefs", Context.MODE_PRIVATE).edit {
+            putBoolean("is_playing", false)
+        }
     }
 
     private fun restoreState() {

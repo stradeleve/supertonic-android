@@ -11,6 +11,7 @@ class MainViewModel : ViewModel() {
     var inputText = mutableStateOf("")
     var isInitializing = mutableStateOf(true)
     var isSynthesizing = mutableStateOf(false)
+    var canResume = mutableStateOf(false)
 
     // Settings State
     var currentLang = mutableStateOf(DEFAULT_LANG)

@@ -10,8 +10,8 @@
     <string name="speed_label">Speed</string>
     <string name="quality_label">Quality</string>
     <string name="synthesize_button">Synthesize</string>
-    <string name="loading_engine">Loading Engine...</string>
-    <string name="initializing">Initializing...</string>
+    <string name="loading_engine">Loading Engine…</string>
+    <string name="initializing">Initializing…</string>
     <string name="ready_soc_fmt">Ready (SoC: %1$s)</string>
     <string name="init_failed">Initialization Failed</string>
     <string name="engine_error">Engine Error</string>
@@ -21,6 +21,8 @@
     <string name="fetched_web_text">Fetched Web Text</string>
     <string name="resume_title">Resume Playback?</string>
     <string name="resume_message">Would you like to continue reading from where you left off?</string>
+    <string name="resume_button">Resume</string>
+    <string name="resume_content_description">Resume last playback</string>
     <string name="play_selected_title">Play Selected Text?</string>
     <string name="play_selected_message">Would you like to start synthesis for this text immediately?</string>
     <string name="yes">Yes</string>
@@ -43,7 +45,7 @@
 
     <!-- Playback Activity -->
     <string name="now_playing_title">Now Playing</string>
-    <string name="saving_audio">Saving Audio...</string>
+    <string name="saving_audio">Saving Audio…</string>
     <string name="saved_to_fmt">Saved to %1$s</string>
     <string name="export_failed">Export Failed</string>
 
@@ -101,10 +103,10 @@
     <string name="advanced_normalization_desc">Applies English-style rules for numbers, units, etc.</string>
 
     <!-- Notifications -->
-    <string name="notif_synthesizing">Synthesizing...</string>
+    <string name="notif_synthesizing">Synthesizing…</string>
     <string name="notif_playing">Playing Audio</string>
     <string name="notif_paused">Paused</string>
-    <string name="notif_exporting">Exporting Audio...</string>
+    <string name="notif_exporting">Exporting Audio…</string>
 
     <!-- Voices -->
     <string name="voice_m1">Alex - Lively, Upbeat</string>

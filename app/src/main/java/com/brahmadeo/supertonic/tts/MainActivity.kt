@@ -429,6 +429,14 @@ class MainActivity : ComponentActivity() {
                         },
                         isV2Ready = AssetManager.isV2Ready(this),
 
+                        canResume = viewModel.canResume.value,
+                        onResumeClick = {
+                            val intent = Intent(this, PlaybackActivity::class.java)
+                            intent.putExtra("is_resume", true)
+                            intent.flags = Intent.FLAG_ACTIVITY_REORDER_TO_FRONT
+                            startActivity(intent)
+                        },
+
                         showMiniPlayer = viewModel.showMiniPlayer.value,
                         miniPlayerTitle = viewModel.miniPlayerTitle.value,
                         miniPlayerIsPlaying = viewModel.miniPlayerIsPlaying.value,
@@ -449,6 +457,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        checkResumeState()
     }
 
     private fun loadPreferences() {
@@ -522,6 +535,17 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun initializeEngine(version: String) {
+        val modelPath = File(filesDir, "$version/onnx").absolutePath
+        val libPath = applicationInfo.nativeLibraryDir + "/libonnxruntime.so"
+
+        if (SupertonicTTS.isInitialized(modelPath)) {
+            Log.i("MainActivity", "Engine already initialized for $version, skipping reload")
+            viewModel.isInitializing.value = false
+            currentModelVersion = version
+            setupVoicesMap(version, viewModel.currentLang.value)
+            return
+        }
+
         currentModelVersion = version
         viewModel.isInitializing.value = true
         
@@ -530,12 +554,6 @@ class MainActivity : ComponentActivity() {
                 setupVoicesMap(version, viewModel.currentLang.value)
             }
             
-            // Force release of any existing engine to ensure we load the new model path
-            SupertonicTTS.release()
-            
-            val modelPath = File(filesDir, "$version/onnx").absolutePath
-            val libPath = applicationInfo.nativeLibraryDir + "/libonnxruntime.so"
-
             if (SupertonicTTS.initialize(modelPath, libPath)) {
                 withContext(Dispatchers.Main) {
                     viewModel.isInitializing.value = false
@@ -714,7 +732,10 @@ class MainActivity : ComponentActivity() {
         val lastText = prefs.getString("last_text", null)
         val isPlayingPref = prefs.getBoolean("is_playing", false)
 
-        if (lastText.isNullOrEmpty()) return
+        if (lastText.isNullOrEmpty()) {
+            viewModel.canResume.value = false
+            return
+        }
 
         // If service is already active, we just sync the mini player state
         try {
@@ -722,30 +743,13 @@ class MainActivity : ComponentActivity() {
                 runOnUiThread {
                     viewModel.showMiniPlayer.value = true
                     viewModel.miniPlayerTitle.value = lastText
+                    viewModel.canResume.value = false // Mini player handles it
                 }
                 return
             }
         } catch (e: Exception) { }
 
-        if (isPlayingPref) {
-             AlertDialog.Builder(this)
-                .setTitle(getString(R.string.resume_title))
-                .setMessage(getString(R.string.resume_message))
-                .setPositiveButton(getString(R.string.yes)) { _, _ ->
-                    val intent = Intent(this, PlaybackActivity::class.java)
-                    intent.putExtra("is_resume", true)
-                    startActivity(intent)
-                }
-                .setNegativeButton(getString(R.string.no)) { _, _ ->
-                    getSharedPreferences("SupertonicPrefs", MODE_PRIVATE).edit {
-                        putBoolean("is_playing", false)
-                    }
-                    val stopIntent = Intent(this, PlaybackService::class.java)
-                    stopIntent.action = "STOP_PLAYBACK"
-                    startService(stopIntent)
-                }
-                .show()
-        }
+        viewModel.canResume.value = isPlayingPref
     }
 
     override fun onNewIntent(intent: Intent) {
