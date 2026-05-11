@@ -19,16 +19,14 @@ CLAUDE.md
 GEMINI.md
 .gemini_security/
 
+# Environment variables and secrets
+.env
+.env.*
+
 # IDE
 .idea/
-*.iml
 *.iws
 *.ipr
-
-# Gradle Wrapper
-gradlew
-gradlew.bat
-gradle/wrapper/gradle-wrapper.jar
 
 # Build Artifacts
 app/release/
