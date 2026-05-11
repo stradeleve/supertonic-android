@@ -2,6 +2,7 @@ package com.brahmadeo.supertonic.tts
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
@@ -15,6 +16,7 @@ import com.brahmadeo.supertonic.tts.utils.QueueManager
 class QueueActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         setContent {

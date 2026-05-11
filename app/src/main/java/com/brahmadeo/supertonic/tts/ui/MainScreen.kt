@@ -201,6 +201,7 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .imePadding()
+                    .navigationBarsPadding()
                     .verticalScroll(scrollState)
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp)

@@ -10,6 +10,7 @@ import android.os.IBinder
 import android.os.RemoteException
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.runtime.*
 import com.brahmadeo.supertonic.tts.service.IPlaybackListener
@@ -131,6 +132,7 @@ class PlaybackActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
 
         currentText = intent.getStringExtra(EXTRA_TEXT) ?: ""

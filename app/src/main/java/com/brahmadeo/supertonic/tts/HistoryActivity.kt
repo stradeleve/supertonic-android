@@ -3,6 +3,7 @@ package com.brahmadeo.supertonic.tts
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import com.brahmadeo.supertonic.tts.ui.HistoryScreen
 import com.brahmadeo.supertonic.tts.ui.theme.SupertonicTheme
@@ -10,6 +11,7 @@ import com.brahmadeo.supertonic.tts.ui.theme.SupertonicTheme
 class HistoryActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             SupertonicTheme {

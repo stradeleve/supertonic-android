@@ -3,6 +3,7 @@ package com.brahmadeo.supertonic.tts
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.core.content.FileProvider
 import com.brahmadeo.supertonic.tts.ui.SavedAudioScreen
@@ -12,6 +13,7 @@ import java.io.File
 class SavedAudioActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         setContent {
             SupertonicTheme {

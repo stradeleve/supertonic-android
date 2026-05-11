@@ -6,6 +6,7 @@ import android.os.Bundle
 import android.os.ParcelFileDescriptor
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -90,6 +91,7 @@ class EbookOutlineActivity : ComponentActivity() {
     private lateinit var ebookParser: EbookParser
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         ebookParser = EbookParser(this)
 
