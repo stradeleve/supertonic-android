@@ -134,15 +134,20 @@ fn classify_quote(chars: &[char], i: usize) -> QuoteType {
     let before_is_ws = char_before.map_or(true, |c| c.is_whitespace());
     let after_is_ws = char_after.map_or(true, |c| c.is_whitespace());
     
-    let before_is_word = char_before.map_or(false, |c| c.is_alphanumeric());
-    let after_is_word = char_after.map_or(false, |c| c.is_alphanumeric());
+    // Check for opening punctuation/symbols that typically precede opening quotes.
+    // Redundant brackets [ and underscore _ are not checked because they are replaced earlier.
+    let before_is_open_punc = char_before.map_or(false, |c| "({,:-¿¡「『【〈《‹«".contains(c));
     
-    let before_is_punc = char_before.map_or(false, |c| ".,!?;:)_]".contains(c));
-    let after_is_punc = char_after.map_or(false, |c| "([_".contains(c));
+    // Check for closing punctuation/symbols that typically follow closing quotes.
+    // Redundant bracket ] and backslash are not checked because they are replaced/removed earlier.
+    let after_is_close_punc = char_after.map_or(false, |c| ")}.,!?:;-…。」』】〉》›»".contains(c));
 
-    if (before_is_ws || after_is_punc) && (after_is_word || !after_is_ws) {
+    let is_opening = (before_is_ws || before_is_open_punc) && !after_is_ws;
+    let is_closing = (after_is_ws || after_is_close_punc) && !before_is_ws;
+
+    if is_opening && !is_closing {
         QuoteType::Opening
-    } else if (after_is_ws || before_is_punc) && (before_is_word || !before_is_ws) {
+    } else if is_closing && !is_opening {
         QuoteType::Closing
     } else {
         QuoteType::Ambiguous
@@ -252,7 +257,8 @@ pub fn preprocess_text(text: &str, lang: &str) -> Result<String> {
     let mut text: String = text.nfkd().collect();
 
     // 1. Remove emojis (wide Unicode range) - Safe for all languages
-    let emoji_pattern = Regex::new(r"[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F700}-\x{1F77F}\x{1F780}-\x{1F7FF}\x{1F800}-\x{1F8FF}\x{1F900}-\x{1F9FF}\x{1FA00}-\x{1FA6F}\x{1FA70}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{1F1E6}-\x{1F1FF}]+").unwrap();
+    static EMOJI_RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let emoji_pattern = EMOJI_RE.get_or_init(|| Regex::new(r"[\x{1F600}-\x{1F64F}\x{1F300}-\x{1F5FF}\x{1F680}-\x{1F6FF}\x{1F700}-\x{1F77F}\x{1F780}-\x{1F7FF}\x{1F800}-\x{1F8FF}\x{1F900}-\x{1F9FF}\x{1FA00}-\x{1FA6F}\x{1FA70}-\x{1FAFF}\x{2600}-\x{26FF}\x{2700}-\x{27BF}\x{1F1E6}-\x{1F1FF}]+").unwrap());
     text = emoji_pattern.replace_all(&text, "").to_string();
 
     // 2. Replace typographic quotes, dashes, and brackets - Safe for all languages
@@ -300,13 +306,14 @@ pub fn preprocess_text(text: &str, lang: &str) -> Result<String> {
     }
 
     // 5. Spacing around punctuation - Safe for all languages
-    text = Regex::new(r" , ").unwrap().replace_all(&text, ",").to_string();
-    text = Regex::new(r" \. ").unwrap().replace_all(&text, ".").to_string();
-    text = Regex::new(r" ! ").unwrap().replace_all(&text, "!").to_string();
-    text = Regex::new(r" \? ").unwrap().replace_all(&text, "?").to_string();
-    text = Regex::new(r" ; ").unwrap().replace_all(&text, ";").to_string();
-    text = Regex::new(r" : ").unwrap().replace_all(&text, ":").to_string();
-    text = Regex::new(r" ' ").unwrap().replace_all(&text, "'").to_string();
+    // OPTIMIZATION: Use fast string replacements instead of expensive regex compilations
+    text = text.replace(" , ", ",");
+    text = text.replace(" . ", ".");
+    text = text.replace(" ! ", "!");
+    text = text.replace(" ? ", "?");
+    text = text.replace(" ; ", ";");
+    text = text.replace(" : ", ":");
+    text = text.replace(" ' ", "'");
 
     // Remove duplicate quotes
     while text.contains("\"\"") {
@@ -320,7 +327,9 @@ pub fn preprocess_text(text: &str, lang: &str) -> Result<String> {
     }
 
     // Remove extra spaces
-    text = Regex::new(r"\s+").unwrap().replace_all(&text, " ").to_string();
+    static WHITESPACE_RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let whitespace_re = WHITESPACE_RE.get_or_init(|| Regex::new(r"\s+").unwrap());
+    text = whitespace_re.replace_all(&text, " ").to_string();
     text = text.trim().to_string();
 
     // Remove unmatched double/single quotes to avoid breaking model on text chunk splits
@@ -328,7 +337,8 @@ pub fn preprocess_text(text: &str, lang: &str) -> Result<String> {
 
     // 6. Ending punctuation check - Safe for all languages except Korean
     if !text.is_empty() && lang != "ko" {
-        let ends_with_punct = Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\\\]}…。」』】〉》›»]$"#).unwrap();
+        static ENDS_WITH_PUNCT_RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+        let ends_with_punct = ENDS_WITH_PUNCT_RE.get_or_init(|| Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\\\]}…。」』】〉》›»]$"#).unwrap());
         if !ends_with_punct.is_match(&text) {
             text.push('.');
         }
@@ -468,7 +478,8 @@ pub fn chunk_text(text: &str, max_len: Option<usize>) -> Vec<String> {
     }
 
     // Split by paragraphs
-    let para_re = Regex::new(r"\n\s*\n").unwrap();
+    static PARA_RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let para_re = PARA_RE.get_or_init(|| Regex::new(r"\n\s*\n").unwrap());
     let paragraphs: Vec<&str> = para_re.split(text).collect();
     let mut chunks = Vec::new();
 
@@ -582,12 +593,8 @@ pub fn chunk_text(text: &str, max_len: Option<usize>) -> Vec<String> {
 }
 
 fn split_sentences(text: &str) -> Vec<String> {
-    // Rust's regex doesn't support lookbehind, so we use a simpler approach
-    // Split on sentence boundaries (., !, ?, ;) followed by optional quote/bracket and space
-    // Added support for:
-    // - Semicolon (;) as splitter
-    // - Optional closing quotes/brackets after punctuation
-    let re = Regex::new(r"([.!?]['\u{2019}\u{201D}\u{0022}\)\}\]]?)\s+").unwrap();
+    static SENTENCE_RE: std::sync::OnceLock<Regex> = std::sync::OnceLock::new();
+    let re = SENTENCE_RE.get_or_init(|| Regex::new(r"([.!?]['\u{2019}\u{201D}\u{0022}\)\}\]]?)\s+").unwrap());
 
     // Find all matches
     let matches: Vec<_> = re.find_iter(text).collect();
@@ -1133,6 +1140,19 @@ mod tests {
         let chunk2 = "Make of that what you will.\"";
         let chunk2_expected = "Make of that what you will.";
         assert_eq!(remove_unmatched_quotes(chunk2), chunk2_expected);
+
+        // Test quote classification heuristic fixes (comma as prefix, opening parenthesis as suffix/next boundary)
+        let test_comma_prefix = "said, \"Hello\" \"World";
+        // Under correct classification:
+        // - "Hello" is balanced (quote 1 is opening, quote 2 is closing).
+        // - "World" is unmatched (only opening quote), so it gets stripped.
+        assert_eq!(remove_unmatched_quotes(test_comma_prefix), "said, \"Hello\" World");
+
+        let test_paren_suffix = "\"Hello\"( \"World";
+        // Under correct classification:
+        // - "Hello" is balanced (quote 2 is followed by ( but is closing, quote 1 is opening).
+        // - "World" is unmatched (only opening quote), so it gets stripped.
+        assert_eq!(remove_unmatched_quotes(test_paren_suffix), "\"Hello\"( World");
     }
 
     #[test]
