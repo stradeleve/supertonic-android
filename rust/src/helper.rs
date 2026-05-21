@@ -113,6 +113,140 @@ impl UnicodeProcessor {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Copy)]
+enum QuoteType {
+    Opening,
+    Closing,
+    Ambiguous,
+}
+
+fn classify_quote(chars: &[char], i: usize) -> QuoteType {
+    if chars.is_empty() || i >= chars.len() {
+        return QuoteType::Ambiguous;
+    }
+    
+    let has_before = i > 0;
+    let has_after = i + 1 < chars.len();
+    
+    let char_before = if has_before { Some(chars[i - 1]) } else { None };
+    let char_after = if has_after { Some(chars[i + 1]) } else { None };
+    
+    let before_is_ws = char_before.map_or(true, |c| c.is_whitespace());
+    let after_is_ws = char_after.map_or(true, |c| c.is_whitespace());
+    
+    let before_is_word = char_before.map_or(false, |c| c.is_alphanumeric());
+    let after_is_word = char_after.map_or(false, |c| c.is_alphanumeric());
+    
+    let before_is_punc = char_before.map_or(false, |c| ".,!?;:)_]".contains(c));
+    let after_is_punc = char_after.map_or(false, |c| "([_".contains(c));
+
+    if (before_is_ws || after_is_punc) && (after_is_word || !after_is_ws) {
+        QuoteType::Opening
+    } else if (after_is_ws || before_is_punc) && (before_is_word || !before_is_ws) {
+        QuoteType::Closing
+    } else {
+        QuoteType::Ambiguous
+    }
+}
+
+fn remove_unmatched_quotes(text: &str) -> String {
+    let chars: Vec<char> = text.chars().collect();
+    let mut to_remove = std::collections::HashSet::new();
+
+    // 1. Process double quotes '"'
+    let mut double_quotes = Vec::new();
+    for (i, &c) in chars.iter().enumerate() {
+        if c == '"' {
+            double_quotes.push(i);
+        }
+    }
+
+    if double_quotes.len() % 2 != 0 {
+        let mut open_stack = Vec::new();
+        for &idx in &double_quotes {
+            let q_type = classify_quote(&chars, idx);
+            match q_type {
+                QuoteType::Opening => {
+                    open_stack.push(idx);
+                }
+                QuoteType::Closing => {
+                    if open_stack.is_empty() {
+                        to_remove.insert(idx);
+                    } else {
+                        open_stack.pop();
+                    }
+                }
+                QuoteType::Ambiguous => {
+                    if open_stack.is_empty() {
+                        open_stack.push(idx);
+                    } else {
+                        open_stack.pop();
+                    }
+                }
+            }
+        }
+        // Any remaining open quotes are unmatched
+        for idx in open_stack {
+            to_remove.insert(idx);
+        }
+    }
+
+    // 2. Process single quotes '\'' (excluding internal apostrophes)
+    let mut single_quotes = Vec::new();
+    for (i, &c) in chars.iter().enumerate() {
+        if c == '\'' {
+            // Check if it is an internal apostrophe
+            let is_internal = if i > 0 && i + 1 < chars.len() {
+                chars[i - 1].is_alphanumeric() && chars[i + 1].is_alphanumeric()
+            } else {
+                false
+            };
+            if !is_internal {
+                single_quotes.push(i);
+            }
+        }
+    }
+
+    if single_quotes.len() % 2 != 0 {
+        let mut open_stack = Vec::new();
+        for &idx in &single_quotes {
+            let q_type = classify_quote(&chars, idx);
+            match q_type {
+                QuoteType::Opening => {
+                    open_stack.push(idx);
+                }
+                QuoteType::Closing => {
+                    if open_stack.is_empty() {
+                        to_remove.insert(idx);
+                    } else {
+                        open_stack.pop();
+                    }
+                }
+                QuoteType::Ambiguous => {
+                    if open_stack.is_empty() {
+                        open_stack.push(idx);
+                    } else {
+                        open_stack.pop();
+                    }
+                }
+            }
+        }
+        // Any remaining open quotes are unmatched
+        for idx in open_stack {
+            to_remove.insert(idx);
+        }
+    }
+
+    // Reconstruct string without the marked indices
+    let mut result = String::new();
+    for (i, &c) in chars.iter().enumerate() {
+        if !to_remove.contains(&i) {
+            result.push(c);
+        }
+    }
+    result
+}
+
 pub fn preprocess_text(text: &str, lang: &str) -> Result<String> {
     // Revert to NFKD normalization as required for Korean Jamo decomposition
     let mut text: String = text.nfkd().collect();
@@ -189,9 +323,12 @@ pub fn preprocess_text(text: &str, lang: &str) -> Result<String> {
     text = Regex::new(r"\s+").unwrap().replace_all(&text, " ").to_string();
     text = text.trim().to_string();
 
+    // Remove unmatched double/single quotes to avoid breaking model on text chunk splits
+    text = remove_unmatched_quotes(&text);
+
     // 6. Ending punctuation check - Safe for all languages except Korean
     if !text.is_empty() && lang != "ko" {
-        let ends_with_punct = Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\\]}…。」』】〉》›»]$"#).unwrap();
+        let ends_with_punct = Regex::new(r#"[.!?;:,'"\u{201C}\u{201D}\u{2018}\u{2019})\\\]}…。」』】〉》›»]$"#).unwrap();
         if !ends_with_punct.is_match(&text) {
             text.push('.');
         }
@@ -937,6 +1074,11 @@ mod tests {
         let input = "hello @ world";
         let result = preprocess_text(input, "en").unwrap();
         assert_eq!(result, "hello at world.");
+
+        // Test if a trailing period is correctly preserved without duplication
+        let input_period = "hello world.";
+        let result_period = preprocess_text(input_period, "en").unwrap();
+        assert_eq!(result_period, "hello world.");
     }
 
     #[test]
@@ -947,6 +1089,63 @@ mod tests {
         assert!(!result.contains('.'));
         assert!(result.starts_with("<ko>"));
         assert!(result.ends_with("</ko>"));
+    }
+
+    #[test]
+    fn test_remove_unmatched_quotes() {
+        // Test unmatched double quote at start
+        let input_double_start = "\"I wanted to go to the store,";
+        assert_eq!(remove_unmatched_quotes(input_double_start), "I wanted to go to the store,");
+
+        // Test unmatched double quote at end
+        let input_double_end = "He talked to her first.\"";
+        assert_eq!(remove_unmatched_quotes(input_double_end), "He talked to her first.");
+
+        // Test unmatched double quote in text split with other matched quotes
+        let input_mixed = "He talked to her first.\" \"Yes, he did.\"";
+        assert_eq!(remove_unmatched_quotes(input_mixed), "He talked to her first. \"Yes, he did.\"");
+
+        // Test fully balanced double quotes (should not modify)
+        let input_balanced = "\"He talked to her first.\"";
+        assert_eq!(remove_unmatched_quotes(input_balanced), "\"He talked to her first.\"");
+
+        // Test unmatched single quote at start
+        let input_single_start = "'I wanted to go to the store,";
+        assert_eq!(remove_unmatched_quotes(input_single_start), "I wanted to go to the store,");
+
+        // Test unmatched single quote at end
+        let input_single_end = "He talked to her first.'";
+        assert_eq!(remove_unmatched_quotes(input_single_end), "He talked to her first.");
+
+        // Test that internal apostrophes are NOT removed/touched
+        let input_apostrophes = "don't l'oiseau s'envole";
+        assert_eq!(remove_unmatched_quotes(input_apostrophes), "don't l'oiseau s'envole");
+
+        // Test combined unmatched single quotes with apostrophes
+        let input_apostrophes_unmatched = "'don't l'oiseau s'envole";
+        assert_eq!(remove_unmatched_quotes(input_apostrophes_unmatched), "don't l'oiseau s'envole");
+
+        // Test user's specific chunk 1 and chunk 2 split example
+        let chunk1 = "Fletcher was silent for a moment, then he said, \"The big guy who was riding with Gibson. Who is he?\" \"No Idea.\" \"He doesn't have ID?\" \"No.\" \"Any luggage? A backpack at least?\" \"Just this.\" Vidic took a pistol from his waistband and handed it to Fletcher. \"A Glock 17. The FBI's weapon of choice.";
+        let chunk1_expected = "Fletcher was silent for a moment, then he said, \"The big guy who was riding with Gibson. Who is he?\" \"No Idea.\" \"He doesn't have ID?\" \"No.\" \"Any luggage? A backpack at least?\" \"Just this.\" Vidic took a pistol from his waistband and handed it to Fletcher. A Glock 17. The FBI's weapon of choice.";
+        assert_eq!(remove_unmatched_quotes(chunk1), chunk1_expected);
+
+        let chunk2 = "Make of that what you will.\"";
+        let chunk2_expected = "Make of that what you will.";
+        assert_eq!(remove_unmatched_quotes(chunk2), chunk2_expected);
+    }
+
+    #[test]
+    fn test_preprocess_text_unmatched_quotes() {
+        // Test double quote cleanup in preprocess_text
+        let input = "He talked to her first.\"";
+        let result = preprocess_text(input, "en").unwrap();
+        assert_eq!(result, "He talked to her first.");
+
+        // Test single quote cleanup in preprocess_text
+        let input_single = "He talked to her first.'";
+        let result_single = preprocess_text(input_single, "en").unwrap();
+        assert_eq!(result_single, "He talked to her first.");
     }
 }
 
