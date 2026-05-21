@@ -250,8 +250,8 @@ pub fn sample_noisy_latent(
 
     let mut noisy_latent = Array3::<f32>::zeros((bsz, latent_dim_val, latent_len));
 
-    // Reduced temperature (0.667) improves stability and reduces word skipping/hallucinations
-    let normal = Normal::new(0.0, 0.667).unwrap();
+    // Standard temperature (1.0) for the diffusion sampling process
+    let normal = Normal::new(0.0, 1.0).unwrap();
     let mut rng = rand::thread_rng();
 
     for b in 0..bsz {
