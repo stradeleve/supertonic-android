@@ -169,10 +169,11 @@ object SupertonicTTS {
 
     @Synchronized
     fun release() {
-        if (nativePtr != 0L) {
-            Log.i("SupertonicTTS", "Releasing engine: $nativePtr")
-            close(nativePtr)
-            nativePtr = 0
+        val ptrToRelease = nativePtr
+        if (ptrToRelease != 0L) {
+            Log.i("SupertonicTTS", "Releasing engine: $ptrToRelease")
+            nativePtr = 0L // Immediately nullify to prevent use-after-free
+            close(ptrToRelease)
         }
     }
 

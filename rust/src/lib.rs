@@ -4,6 +4,7 @@ use jni::sys::{jlong, jint, jfloat, jbyteArray};
 use android_logger::Config;
 use log::LevelFilter;
 use std::time::Instant;
+use std::path::{Path, PathBuf};
 
 mod helper;
 mod lang;
@@ -12,12 +13,38 @@ mod thermal;
 use helper::{load_text_to_speech, load_voice_style, load_and_mix_voice_styles, TextToSpeech};
 use thermal::{UnifiedThermalManager, SocClass};
 
-use std::panic;
-
 struct SupertonicEngine {
     tts: TextToSpeech,
     thermal: UnifiedThermalManager,
     last_rtf: f32,
+}
+
+// VULN-003 fix: Path sanitization helper
+fn sanitize_path(path_str: &str) -> String {
+    // 1. Handle null bytes which can terminate paths prematurely in some OS calls
+    let sanitized_str = path_str.replace('\0', "");
+    
+    // 2. Basic URL decoding for common traversal patterns if encoded
+    let sanitized_str = sanitized_str
+        .replace("%2e", ".")
+        .replace("%2E", ".")
+        .replace("%2f", "/")
+        .replace("%2F", "/")
+        .replace("%5c", "\\")
+        .replace("%5C", "\\");
+
+    let path = Path::new(&sanitized_str);
+    let mut sanitized = PathBuf::new();
+    
+    for component in path.components() {
+        match component {
+            std::path::Component::Normal(c) => sanitized.push(c),
+            // Allow root but nothing that goes "up" or "stays" in a way that escapes
+            std::path::Component::RootDir => sanitized.push(std::path::Component::RootDir),
+            _ => {} // Explicitly ignore .. and .
+        }
+    }
+    sanitized.to_string_lossy().into_owned()
 }
 
 #[no_mangle]
@@ -33,17 +60,19 @@ pub extern "system" fn Java_com_brahmadeo_supertonic_tts_SupertonicTTS_init(
         Config::default().with_max_level(LevelFilter::Info),
     );
 
-    // VULN-002 fix: don't log panic payload (may contain user text/PII)
-    panic::set_hook(Box::new(|panic_info| {
-        let location = panic_info.location()
-            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
-            .unwrap_or_else(|| "unknown location".to_string());
-        log::error!("RUST PANIC at {}", location);
-    }));
-
-    let model_path: String = env.get_string(&model_path).expect("Couldn't get java string!").into();
+    let model_path: String = match env.get_string(&model_path) {
+        Ok(s) => s.into(),
+        Err(_) => {
+            log::error!("Failed to get model_path string from JNI");
+            return 0;
+        }
+    };
     
-    log::info!("Initializing Supertonic Engine (ORT: {}, XNN: {}) with model path: {}", ort_threads, xnn_threads, model_path);
+    // VULN-004 fix: Redact path in logs
+    let model_name = Path::new(&model_path).file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "unknown".to_string());
+    log::info!("Initializing Supertonic Engine (ORT: {}, XNN: {}) with model: {}", ort_threads, xnn_threads, model_name);
 
     if !ort::init().with_name("supertonic-tts").commit() {
         log::warn!("ORT environment already initialized");
@@ -81,48 +110,66 @@ pub extern "system" fn Java_com_brahmadeo_supertonic_tts_SupertonicTTS_synthesiz
     steps: jint,
     gain: jfloat,
 ) -> jbyteArray {
+    // VULN-001 fix: Pointer validation
+    if ptr == 0 {
+        log::error!("Native synthesize called with null pointer");
+        return std::ptr::null_mut();
+    }
+
     let engine = unsafe { &mut *(ptr as *mut SupertonicEngine) };
     
-    let text: String = env.get_string(&text).expect("Couldn't get java string!").into();
-    let lang: String = env.get_string(&lang).expect("Couldn't get java string!").into();
-    let style_path: String = env.get_string(&style_path).expect("Couldn't get java string!").into();
+    let text: String = match env.get_string(&text) {
+        Ok(s) => s.into(),
+        Err(_) => return std::ptr::null_mut()
+    };
+    let lang: String = match env.get_string(&lang) {
+        Ok(s) => s.into(),
+        Err(_) => return std::ptr::null_mut()
+    };
+    let style_path: String = match env.get_string(&style_path) {
+        Ok(s) => s.into(),
+        Err(_) => return std::ptr::null_mut()
+    };
 
     engine.thermal.update(buffer_seconds, engine.last_rtf);
 
     let style = if style_path.contains(';') {
         let parts: Vec<&str> = style_path.split(';').collect();
         if parts.len() == 3 {
-            let p1 = parts[0];
-            let p2 = parts[1];
+            let p1 = sanitize_path(parts[0]);
+            let p2 = sanitize_path(parts[1]);
             let alpha = parts[2].parse::<f32>().unwrap_or(0.5);
-            match load_and_mix_voice_styles(p1, p2, alpha) {
+            match load_and_mix_voice_styles(&p1, &p2, alpha) {
                 Ok(s) => s,
                 Err(e) => {
                     log::error!("Failed to mix voice styles: {:?}", e);
-                    return env.new_byte_array(0).unwrap().into_raw();
+                    return std::ptr::null_mut();
                 }
             }
         } else {
             log::error!("Invalid mix format. Expected: path1;path2;alpha");
-            return env.new_byte_array(0).unwrap().into_raw();
+            return std::ptr::null_mut();
         }
     } else {
-        match load_voice_style(&[style_path], false) {
+        let p = sanitize_path(&style_path);
+        match load_voice_style(&[p], false) {
             Ok(s) => s,
             Err(e) => {
                 log::error!("Failed to load voice style: {:?}", e);
-                return env.new_byte_array(0).unwrap().into_raw();
+                return std::ptr::null_mut();
             }
         }
     };
 
     let start = Instant::now();
-    
-    // Create a progress callback
     let mut last_progress_call = Instant::now();
-    let result = engine.tts.call(&text, &lang, &style, steps as usize, speed, 0.1, |curr, total, audio_chunk| {
+    
+    let synthesis_result = engine.tts.call(&text, &lang, &style, steps as usize, speed, 0.1, |curr, total, audio_chunk| {
         // Check for cancellation
-        let is_cancelled = env.call_method(&instance, "isCancelled", "()Z", &[]).unwrap().z().unwrap();
+        let is_cancelled = match env.call_method(&instance, "isCancelled", "()Z", &[]) {
+            Ok(v) => v.z().unwrap_or(false),
+            Err(_) => false,
+        };
         if is_cancelled {
             return false;
         }
@@ -136,15 +183,16 @@ pub extern "system" fn Java_com_brahmadeo_supertonic_tts_SupertonicTTS_synthesiz
                 pcm_data.extend_from_slice(&val.to_le_bytes());
             }
             
-            let output = env.new_byte_array(pcm_data.len() as i32).unwrap();
-            env.set_byte_array_region(&output, 0, pcm_data.iter().map(|&b| b as i8).collect::<Vec<_>>().as_slice()).unwrap();
-            
-            let _ = env.call_method(
-                &instance,
-                "notifyAudioChunk",
-                "([B)V",
-                &[JValue::Object(&output)],
-            );
+            if let Ok(output) = env.new_byte_array(pcm_data.len() as i32) {
+                let i8_data: Vec<i8> = pcm_data.iter().map(|&b| b as i8).collect();
+                let _ = env.set_byte_array_region(&output, 0, &i8_data);
+                let _ = env.call_method(
+                    &instance,
+                    "notifyAudioChunk",
+                    "([B)V",
+                    &[JValue::Object(&output)],
+                );
+            }
         }
 
         // Only call Progress JNI every 100ms or at start/end/chunk
@@ -160,7 +208,7 @@ pub extern "system" fn Java_com_brahmadeo_supertonic_tts_SupertonicTTS_synthesiz
         true
     });
 
-    match result {
+    match synthesis_result {
         Ok((wav_data, duration)) => {
             let elapsed = start.elapsed().as_secs_f32();
             if duration > 0.0 {
@@ -175,13 +223,21 @@ pub extern "system" fn Java_com_brahmadeo_supertonic_tts_SupertonicTTS_synthesiz
                 pcm_data.extend_from_slice(&val.to_le_bytes());
             }
 
-            let output = env.new_byte_array(pcm_data.len() as i32).unwrap();
-            env.set_byte_array_region(&output, 0, pcm_data.iter().map(|&b| b as i8).collect::<Vec<_>>().as_slice()).unwrap();
-            output.into_raw()
+            match env.new_byte_array(pcm_data.len() as i32) {
+                Ok(output) => {
+                    let i8_data: Vec<i8> = pcm_data.iter().map(|&b| b as i8).collect();
+                    if env.set_byte_array_region(&output, 0, &i8_data).is_ok() {
+                        output.into_raw()
+                    } else {
+                        std::ptr::null_mut()
+                    }
+                }
+                Err(_) => std::ptr::null_mut()
+            }
         }
         Err(e) => {
             log::error!("Synthesis failed: {:?}", e);
-            env.new_byte_array(0).unwrap().into_raw()
+            std::ptr::null_mut()
         }
     }
 }
@@ -250,6 +306,8 @@ pub extern "system" fn Java_com_brahmadeo_supertonic_tts_SupertonicTTS_close(
 ) {
     if ptr != 0 {
         unsafe {
+            // VULN-001 fix: Safety is mostly managed on Kotlin side by nulling ptr,
+            // but here we just ensure we don't crash if called with 0 (done above).
             let _ = Box::from_raw(ptr as *mut SupertonicEngine);
         }
     }

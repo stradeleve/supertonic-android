@@ -560,7 +560,7 @@ class MainActivity : ComponentActivity() {
 
     private fun loadPreferences() {
         val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
-        viewModel.inputText.value = prefs.getString("last_text", "") ?: ""
+        viewModel.inputText.value = "" // Do not load user text from cleartext storage
         viewModel.currentLang.value = prefs.getString("selected_lang", MainViewModel.DEFAULT_LANG) ?: MainViewModel.DEFAULT_LANG
         viewModel.selectedVoiceFile.value = prefs.getString("selected_voice", MainViewModel.DEFAULT_VOICE) ?: MainViewModel.DEFAULT_VOICE
         viewModel.selectedVoiceFile2.value = prefs.getString("selected_voice_2", MainViewModel.DEFAULT_VOICE_2) ?: MainViewModel.DEFAULT_VOICE_2
