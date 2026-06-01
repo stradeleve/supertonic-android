@@ -67,8 +67,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Release
-        run: ./gradlew assembleRelease bundleRelease
+      - name: Build Release APK (arm64 only)
+        run: ./gradlew assembleRelease -PrustTargets=arm64
+
+      - name: Build Release Bundle (all targets)
+        run: ./gradlew bundleRelease
 
       - name: Sign APK
         id: sign_apk

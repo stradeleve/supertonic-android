@@ -8,6 +8,35 @@ plugins {
     id 'org.mozilla.rust-android-gradle.rust-android'
 }
 
+// Extract properties dynamically across all build environments
+def getRustTargets() {
+    // If a bundle task is being executed (e.g. for Play Store release), always package all architectures
+    def hasBundleTask = gradle.startParameter.taskNames.any { it.toLowerCase().contains("bundle") }
+    if (hasBundleTask) {
+        return ["arm64", "arm", "x86", "x86_64"]
+    }
+
+    if (project.hasProperty('rustTargets')) {
+        return project.property('rustTargets').toString().split(',') as List
+    }
+    def localPropsFile = project.rootProject.file('local.properties')
+    if (localPropsFile.exists()) {
+        Properties properties = new Properties()
+        localPropsFile.withInputStream { properties.load(it) }
+        if (properties.containsKey('rust.targets')) {
+            return properties.getProperty('rust.targets').split(',') as List
+        }
+    }
+    return ["arm64", "arm", "x86", "x86_64"] // Standard production fallback
+}
+
+def isSplitApksEnabled() {
+    if (project.hasProperty('splitApks')) {
+        return project.property('splitApks').toString().toBoolean()
+    }
+    return false // Default to a Fat/Universal APK for local testing and Actions
+}
+
 configurations {
     onnxRuntime
 }
@@ -15,7 +44,7 @@ configurations {
 cargo {
     module = "../rust"
     libname = "supertonic_tts"
-    targets = ["arm64", "arm", "x86", "x86_64"]
+    targets = getRustTargets() // Dynamic target selection
     profile = "release"
     pythonCommand = "python"
 
@@ -101,6 +130,14 @@ android {
         targetSdk 36
         versionCode 17
         versionName "3.1.4"
+        
+        ndk {
+            abiFilters getRustTargets().collect {
+                if (it == 'arm') return 'armeabi-v7a'
+                if (it == 'arm64') return 'arm64-v8a'
+                return it
+            } as String[]
+        }
     }
 
     configurations.configureEach {
@@ -152,7 +189,7 @@ android {
 
     splits {
         abi {
-            enable true
+            enable isSplitApksEnabled() // Driven by properties
             reset()
             include "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
             universalApk false
