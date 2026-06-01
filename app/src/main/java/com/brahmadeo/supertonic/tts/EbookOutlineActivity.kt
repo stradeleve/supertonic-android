@@ -260,7 +260,7 @@ class EbookOutlineActivity : ComponentActivity() {
         val links = toc.ifEmpty { publication.readingOrder }
         
         val wordCounts = remember { mutableStateMapOf<String, Int>() }
-        var currentlyCalculatingHref by remember { androidx.compose.runtime.mutableStateOf<String?>(null) }
+        var currentlyCalculatingHref by remember { mutableStateOf<String?>(null) }
         
         LaunchedEffect(publication) {
             val flatLinks = links.flatten()
@@ -286,14 +286,16 @@ class EbookOutlineActivity : ComponentActivity() {
                 withContext(Dispatchers.IO) {
                     try {
                         val result = ebookParser.extractText(publication, link)
-                        val words = result.getOrNull()?.let { text ->
-                            text.split(Regex("\\s+")).filter { it.isNotBlank() }.size
-                        } ?: 0
+                        val words = result.getOrNull()?.split(Regex("\\s+"))
+                            ?.filter { it.isNotBlank() }?.size
+                            ?: 0
                         
                         withContext(Dispatchers.Main) {
                             wordCounts[hrefStr] = words
                         }
                         EbookManager.saveWordCount(this@EbookOutlineActivity, ebookFile.absolutePath, hrefStr, words)
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
                     } catch (e: Exception) {
                         e.printStackTrace()
                         withContext(Dispatchers.Main) {

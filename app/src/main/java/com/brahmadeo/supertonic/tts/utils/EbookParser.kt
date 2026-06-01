@@ -22,6 +22,11 @@ import com.tom_roush.pdfbox.text.PDFTextStripper
 import com.tom_roush.pdfbox.text.PDFTextStripperByArea
 import android.graphics.RectF
 import java.io.File
+import org.jsoup.Jsoup
+import org.jsoup.nodes.Document
+import org.jsoup.nodes.Element
+import org.jsoup.nodes.Node
+import org.jsoup.nodes.TextNode
 
 class EbookParser(private val context: Context) {
 
@@ -60,28 +65,174 @@ class EbookParser(private val context: Context) {
         return result
     }
 
+    private fun getRelativePath(urlOrPath: String): String {
+        var path = urlOrPath.substringAfter("://", urlOrPath)
+        if (path.contains("/")) {
+            path = path.substringAfter("/", path)
+        }
+        val lowerPath = path.lowercase()
+        val epubIdx = lowerPath.indexOf(".epub/")
+        if (epubIdx != -1) {
+            path = path.substring(epubIdx + 6)
+        } else {
+            val zipIdx = lowerPath.indexOf(".zip/")
+            if (zipIdx != -1) {
+                path = path.substring(zipIdx + 5)
+            }
+        }
+        path = path.substringBefore('?').substringBefore('#')
+        return path.trim('/')
+    }
+
+    private fun pathsMatch(path1: String, path2: String): Boolean {
+        val p1 = getRelativePath(path1)
+        val p2 = getRelativePath(path2)
+        return p1 == p2 || p1.endsWith("/$p2") || p2.endsWith("/$p1")
+    }
+
+    private fun extractTextBetween(
+        document: Document,
+        startElement: Element?,
+        endElement: Element?
+    ): String {
+        val textBuilder = StringBuilder()
+        var started = startElement == null
+        var finished = false
+
+        fun traverse(node: Node) {
+            if (finished) return
+
+            if (node == startElement) {
+                started = true
+            }
+            if (endElement != null && node == endElement) {
+                finished = true
+                return
+            }
+
+            if (started) {
+                if (node is TextNode) {
+                    val text = node.text()
+                    if (text.isNotBlank()) {
+                        textBuilder.append(text)
+                    }
+                } else if (node is Element) {
+                    val tag = node.normalName()
+                    if (tag == "br" || tag == "p" || tag == "div" || tag == "li" || tag == "h1" || tag == "h2" || tag == "h3" || tag == "h4" || tag == "h5" || tag == "h6") {
+                        textBuilder.append("\n")
+                    }
+                }
+            }
+
+            for (child in node.childNodes()) {
+                traverse(child)
+                if (finished) return
+            }
+
+            if (started && node is Element) {
+                val tag = node.normalName()
+                if (tag == "p" || tag == "div" || tag == "li" || tag == "h1" || tag == "h2" || tag == "h3" || tag == "h4" || tag == "h5" || tag == "h6") {
+                    textBuilder.append("\n")
+                }
+            }
+        }
+
+        traverse(document.body())
+        val rawText = textBuilder.toString()
+        return rawText.split("\n")
+            .map { it.trim().replace(Regex("\\s+"), " ") }
+            .filter { it.isNotBlank() }
+            .joinToString("\n\n")
+            .trim()
+    }
+
+    suspend fun extractWebpageText(url: String): String = withContext(Dispatchers.IO) {
+        val doc = org.jsoup.Jsoup.connect(url)
+            .userAgent("Mozilla/5.0 (Linux; Android 10) AppleWebKit/537.36")
+            .timeout(10000)
+            .get()
+            
+        // Clean up noise
+        doc.select("script, style, header, footer, nav, aside, iframe, noscript, .comments, .sidebar, .menu, .nav, .footer, .header, #comments, #sidebar, #footer, #header, #nav").remove()
+        
+        // Find main content
+        val mainElement = doc.select("article").firstOrNull()
+            ?: doc.select("main").firstOrNull()
+            ?: doc.select("[id*=article], [id*=content], [id*=story], [id*=post-body], [class*=article], [class*=content], [class*=story]").firstOrNull()
+            ?: doc.body()
+            
+        extractTextBetween(doc, mainElement, null)
+    }
+
     private suspend fun extractSingleLinkText(
         publication: Publication,
         linkToExtract: Link,
         startLocator: Locator? = null
     ): String {
+        val rawUrl = startLocator?.href ?: linkToExtract.url()
+        val urlStr = rawUrl.toString()
+        val fragment = urlStr.substringAfter('#', "")
+        
+        if (fragment.isNotEmpty()) {
+            try {
+                val matchingLink = publication.readingOrder.firstOrNull {
+                    pathsMatch(it.href.toString(), urlStr)
+                } ?: linkToExtract
+                val bytes = publication.get(matchingLink)?.use { it.read().getOrElse { ByteArray(0) } } ?: ByteArray(0)
+                val htmlText = bytes.decodeToString()
+                if (htmlText.isNotBlank()) {
+                    val document = Jsoup.parse(htmlText)
+                    val startElement = document.getElementById(fragment) ?: document.selectFirst("[name=$fragment]")
+                    
+                    var endElement: Element? = null
+                    val flatToc = publication.tableOfContents.flatten()
+                    val currentIndex = flatToc.indexOfFirst {
+                        pathsMatch(it.href.toString(), urlStr) && it.href.toString().substringAfter('#', "") == fragment
+                    }
+                    if (currentIndex != -1 && currentIndex + 1 < flatToc.size) {
+                        val nextLink = flatToc[currentIndex + 1]
+                        val nextUrlStr = nextLink.href.toString()
+                        if (pathsMatch(nextUrlStr, urlStr)) {
+                            val nextFragment = nextUrlStr.substringAfter('#', "")
+                            if (nextFragment.isNotEmpty()) {
+                                endElement = document.getElementById(nextFragment) ?: document.selectFirst("[name=$nextFragment]")
+                            }
+                        }
+                    }
+                    
+                    val text = extractTextBetween(document, startElement, endElement)
+                    if (text.isNotBlank()) {
+                        return text
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("EbookParser", "Failed custom fragment extraction for $urlStr: ${e.message}")
+            }
+        }
+
         try {
-            val locator = startLocator ?: Locator(
-                href = linkToExtract.url(),
+            val cleanHref = urlStr.substringBefore('#')
+            val cleanUrl = org.readium.r2.shared.util.Url(cleanHref) ?: rawUrl
+            val locator = Locator(
+                href = cleanUrl,
                 mediaType = linkToExtract.mediaType ?: org.readium.r2.shared.util.mediatype.MediaType.BINARY
             )
             val content = publication.content(locator)
             if (content != null) {
                 val chapterText = StringBuilder()
-                val elements = content.elements()
-                val targetPath = linkToExtract.url().toString().substringBefore('#')
+                val iterator = content.iterator()
+                val targetPath = linkToExtract.href.toString()
+                val cleanTargetPath = getRelativePath(targetPath)
 
-                for (element in elements) {
+                while (iterator.hasNext()) {
+                    val element = iterator.next()
                     val elementUrl = element.locator.href.toString()
-                    val elementPath = elementUrl.substringBefore('#')
                     
-                    if (elementPath != targetPath) {
-                        break
+                    if (elementUrl != targetPath) {
+                        val cleanElementPath = getRelativePath(elementUrl)
+                        if (cleanElementPath != cleanTargetPath && !cleanElementPath.endsWith("/$cleanTargetPath") && !cleanTargetPath.endsWith("/$cleanElementPath")) {
+                            break
+                        }
                     }
                     
                     if (element is Content.TextualElement) {
@@ -120,9 +271,9 @@ class EbookParser(private val context: Context) {
                 }
             }
 
-            val startPath = link.url().toString().substringBefore('#')
+            val startPath = link.href.toString()
             val spineStartIndex = publication.readingOrder.indexOfFirst {
-                it.url().toString().substringBefore('#') == startPath
+                pathsMatch(it.href.toString(), startPath)
             }
 
             if (spineStartIndex == -1) {
@@ -139,14 +290,14 @@ class EbookParser(private val context: Context) {
             var spineEndIndex = publication.readingOrder.size
             val flatToc = publication.tableOfContents.flatten()
             val currentTocIndex = flatToc.indexOfFirst {
-                it.url().toString().substringBefore('#') == startPath
+                pathsMatch(it.href.toString(), startPath)
             }
             if (currentTocIndex != -1) {
                 for (j in (currentTocIndex + 1) until flatToc.size) {
-                    val nextPath = flatToc[j].url().toString().substringBefore('#')
-                    if (nextPath != startPath) {
+                    val nextPath = flatToc[j].href.toString()
+                    if (!pathsMatch(nextPath, startPath)) {
                         val nextSpineIndex = publication.readingOrder.indexOfFirst {
-                            it.url().toString().substringBefore('#') == nextPath
+                            pathsMatch(it.href.toString(), nextPath)
                         }
                         if (nextSpineIndex != -1 && nextSpineIndex > spineStartIndex) {
                             spineEndIndex = nextSpineIndex
@@ -404,7 +555,10 @@ class EbookParser(private val context: Context) {
     private suspend fun extractFallback(publication: Publication, link: Link?): String {
         val fullText = StringBuilder()
         if (link != null) {
-            val bytes = publication.get(link)?.use { it.read().getOrElse { ByteArray(0) } } ?: ByteArray(0)
+            val matchingLink = publication.readingOrder.firstOrNull {
+                pathsMatch(it.href.toString(), link.href.toString())
+            } ?: link
+            val bytes = publication.get(matchingLink)?.use { it.read().getOrElse { ByteArray(0) } } ?: ByteArray(0)
             val text = bytes.decodeToString()
             fullText.append(renderHtml(text))
         } else {
@@ -429,7 +583,7 @@ class EbookParser(private val context: Context) {
         text = text.replace(Regex("<style.*?>.*?</style>", setOf(RegexOption.DOT_MATCHES_ALL, RegexOption.IGNORE_CASE)), "")
         
         text = text.replace(Regex("<(p|div|h[1-6]|li|br|tr|blockquote|title|header|footer).*?>", RegexOption.IGNORE_CASE), "\n")
-        text = text.replace(Regex("<[^>]*>"), " ")
+        text = text.replace(Regex("<[^>]*>"), "")
         
         text = text.replace("&nbsp;", " ")
             .replace("&amp;", "&")

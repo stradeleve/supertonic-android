@@ -91,6 +91,10 @@ object EbookManager {
         }
     }
 
+    private fun sanitizeFileName(name: String): String {
+        return name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    }
+
     fun importBook(context: Context, uri: Uri): String? {
         try {
             val contentResolver = context.contentResolver
@@ -120,9 +124,18 @@ object EbookManager {
                 else -> "epub"
             }
             
-            val fileName = "book_${System.currentTimeMillis()}.$extension"
+            val fileName = if (!displayName.isNullOrBlank()) {
+                sanitizeFileName(displayName)
+            } else {
+                "book_${System.currentTimeMillis()}.$extension"
+            }
+            
             val destFile = File(context.filesDir, "ebooks/$fileName")
             destFile.parentFile?.mkdirs()
+
+            if (destFile.exists()) {
+                return destFile.absolutePath
+            }
 
             contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(destFile).use { output ->

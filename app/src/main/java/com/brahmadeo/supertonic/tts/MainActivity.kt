@@ -792,17 +792,113 @@ class MainActivity : ComponentActivity() {
         startActivity(intent)
     }
 
+    private fun extractUrl(text: String): String? {
+        val pattern = Regex("https?://[^\\s]+")
+        val match = pattern.find(text)
+        return match?.value
+    }
+
     private fun handleIntent(intent: Intent?) {
         if (intent == null) return
-        if (intent.action == Intent.ACTION_SEND && intent.type == "text/plain") {
-            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT)
-            if (!sharedText.isNullOrEmpty()) {
+        if (intent.getBooleanExtra("intent_handled", false)) return
+        
+        val action = intent.action
+        val type = intent.type
+        
+        // 1. Check if the intent is a PDF or EPUB file import
+        val isViewFile = action == Intent.ACTION_VIEW && intent.data != null
+        val isSendFile = action == Intent.ACTION_SEND && intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) != null
+        
+        val fileUri = if (isViewFile) intent.data else if (isSendFile) intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM) else null
+        
+        if (fileUri != null) {
+            val contentResolver = contentResolver
+            val mimeType = contentResolver.getType(fileUri)
+            val uriStr = fileUri.toString().lowercase()
+            
+            var fileName: String? = null
+            try {
+                contentResolver.query(fileUri, null, null, null, null)?.use { cursor ->
+                    val nameIdx = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (nameIdx != -1 && cursor.moveToFirst()) {
+                        fileName = cursor.getString(nameIdx)
+                    }
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+            
+            val isEbook = mimeType == "application/epub+zip" || 
+                          mimeType == "application/pdf" ||
+                          fileName?.lowercase()?.endsWith(".epub") == true ||
+                          fileName?.lowercase()?.endsWith(".pdf") == true ||
+                          uriStr.endsWith(".epub") || uriStr.contains(".epub?") ||
+                          uriStr.endsWith(".pdf") || uriStr.contains(".pdf?")
+                          
+            if (isEbook) {
+                intent.putExtra("intent_handled", true)
+                val localPath = EbookManager.importBook(this, fileUri)
+                if (localPath != null) {
+                    val outlineIntent = Intent(this, EbookOutlineActivity::class.java).apply {
+                        putExtra(EbookOutlineActivity.EXTRA_URI, localPath)
+                    }
+                    ebookOutlineLauncher.launch(outlineIntent)
+                } else {
+                    Toast.makeText(this, "Failed to import book", Toast.LENGTH_SHORT).show()
+                }
+                return
+            }
+        }
+        
+        // 2. Fall back to existing text sharing logic
+        if (action == Intent.ACTION_SEND && type == "text/plain") {
+            intent.putExtra("intent_handled", true)
+            val sharedText = intent.getStringExtra(Intent.EXTRA_TEXT) ?: ""
+            val url = extractUrl(sharedText)
+            if (url != null) {
+                Toast.makeText(this, "Fetching webpage text...", Toast.LENGTH_SHORT).show()
+                lifecycleScope.launch {
+                    try {
+                        val webText = ebookParser.extractWebpageText(url)
+                        if (webText.isNotBlank()) {
+                            viewModel.inputText.value = prepareTextForTts(webText, viewModel.currentLang.value)
+                            Toast.makeText(this@MainActivity, "Webpage text loaded", Toast.LENGTH_SHORT).show()
+                        } else {
+                            viewModel.inputText.value = prepareTextForTts(sharedText, viewModel.currentLang.value)
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        viewModel.inputText.value = prepareTextForTts(sharedText, viewModel.currentLang.value)
+                        Toast.makeText(this@MainActivity, "Failed to fetch webpage text", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } else if (sharedText.isNotBlank()) {
                 viewModel.inputText.value = prepareTextForTts(sharedText, viewModel.currentLang.value)
             }
         } else {
             val text = intent.getStringExtra(Intent.EXTRA_TEXT) ?: intent.data?.getQueryParameter("text")
             if (!text.isNullOrEmpty()) {
-                viewModel.inputText.value = prepareTextForTts(text, viewModel.currentLang.value)
+                intent.putExtra("intent_handled", true)
+                val url = extractUrl(text)
+                if (url != null) {
+                    Toast.makeText(this, "Fetching webpage text...", Toast.LENGTH_SHORT).show()
+                    lifecycleScope.launch {
+                        try {
+                            val webText = ebookParser.extractWebpageText(url)
+                            if (webText.isNotBlank()) {
+                                viewModel.inputText.value = prepareTextForTts(webText, viewModel.currentLang.value)
+                                Toast.makeText(this@MainActivity, "Webpage text loaded", Toast.LENGTH_SHORT).show()
+                            } else {
+                                viewModel.inputText.value = prepareTextForTts(text, viewModel.currentLang.value)
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            viewModel.inputText.value = prepareTextForTts(text, viewModel.currentLang.value)
+                        }
+                    }
+                } else {
+                    viewModel.inputText.value = prepareTextForTts(text, viewModel.currentLang.value)
+                }
             }
         }
     }
