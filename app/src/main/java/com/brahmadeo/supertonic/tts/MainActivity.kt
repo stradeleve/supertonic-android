@@ -475,7 +475,12 @@ class MainActivity : ComponentActivity() {
                         },
 
                         speed = viewModel.currentSpeed.floatValue,
-                        onSpeedChange = { viewModel.currentSpeed.floatValue = it },
+                        onSpeedChange = {
+                            viewModel.currentSpeed.floatValue = it
+                            getSharedPreferences("SupertonicPrefs", MODE_PRIVATE).edit {
+                                putFloat("speed", it)
+                            }
+                        },
                         steps = viewModel.currentSteps.intValue,
                         onStepsChange = {
                             viewModel.currentSteps.intValue = it

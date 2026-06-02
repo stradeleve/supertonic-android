@@ -24,6 +24,26 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.lifecycleScope
+import com.brahmadeo.supertonic.tts.utils.EbookManager
+import com.brahmadeo.supertonic.tts.utils.EbookParser
+import kotlinx.coroutines.launch
+import org.readium.r2.shared.publication.services.positions
 
 class PlaybackActivity : ComponentActivity() {
 
@@ -45,6 +65,11 @@ class PlaybackActivity : ComponentActivity() {
     private var currentSpeed = 1.0f
     private var currentSteps = 5
     private var currentLang = "en"
+    private var currentBookPath: String? = null
+    private var currentChapterHref: String? = null
+    private var currentPageIndex: Int = -1
+    private val isLoadingNextState = mutableStateOf(false)
+    private lateinit var ebookParser: EbookParser
 
     companion object {
         const val EXTRA_TEXT = "extra_text"
@@ -52,6 +77,9 @@ class PlaybackActivity : ComponentActivity() {
         const val EXTRA_SPEED = "extra_speed"
         const val EXTRA_STEPS = "extra_steps"
         const val EXTRA_LANG = "extra_lang"
+        const val EXTRA_BOOK_PATH = "extra_book_path"
+        const val EXTRA_CHAPTER_HREF = "extra_chapter_href"
+        const val EXTRA_PAGE_INDEX = "extra_page_index"
     }
 
     private val playbackListenerStub = object : IPlaybackListener.Stub() {
@@ -72,6 +100,9 @@ class PlaybackActivity : ComponentActivity() {
                     updateIndexState(current)
                     if (total > 0 && current !in 0 until total) {
                         clearState()
+                        if (current >= total) {
+                            handlePlaybackCompleted()
+                        }
                     }
                 }
             }
@@ -134,6 +165,7 @@ class PlaybackActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
+        ebookParser = EbookParser(this)
         handleIntent(intent)
         setupUI()
 
@@ -144,27 +176,46 @@ class PlaybackActivity : ComponentActivity() {
     private fun setupUI() {
         setContent {
             SupertonicTheme(voiceFile = currentVoicePath) {
-                PlaybackScreen(
-                    sentences = sentencesState.value,
-                    currentIndex = currentIndexState.intValue,
-                    isPlaying = isPlayingState.value,
-                    isServiceActive = isServiceActiveState.value,
-                    isExporting = isExportingState.value,
-                    exportCurrent = exportCurrentState.intValue,
-                    exportTotal = exportTotalState.intValue,
-                    onBackClick = { finish() },
-                    onItemClick = { index -> playFromIndex(index) },
-                    onPlayPauseClick = { handlePlayPause() },
-                    onStopClick = { handleStop() },
-                    onExportClick = { startExport() },
-                    onCancelExportClick = {
-                        try { playbackService?.stop() } catch (e: Exception) {}
-                        if (isExportingState.value) {
-                            isExportingState.value = false
-                            Toast.makeText(this@PlaybackActivity, "Audio saving cancelled", Toast.LENGTH_SHORT).show()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    PlaybackScreen(
+                        sentences = sentencesState.value,
+                        currentIndex = currentIndexState.intValue,
+                        isPlaying = isPlayingState.value,
+                        isServiceActive = isServiceActiveState.value,
+                        isExporting = isExportingState.value,
+                        exportCurrent = exportCurrentState.intValue,
+                        exportTotal = exportTotalState.intValue,
+                        onBackClick = { finish() },
+                        onItemClick = { index -> playFromIndex(index) },
+                        onPlayPauseClick = { handlePlayPause() },
+                        onStopClick = { handleStop() },
+                        onExportClick = { startExport() },
+                        onCancelExportClick = {
+                            try { playbackService?.stop() } catch (e: Exception) {}
+                            if (isExportingState.value) {
+                                isExportingState.value = false
+                                Toast.makeText(this@PlaybackActivity, "Audio saving cancelled", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    )
+
+                    if (isLoadingNextState.value) {
+                        Surface(
+                            modifier = Modifier.fillMaxSize().clickable(enabled = false) {},
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                        ) {
+                            Column(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.Center,
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                CircularProgressIndicator()
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text("Loading next chapter...", fontWeight = FontWeight.Bold)
+                            }
                         }
                     }
-                )
+                }
             }
         }
     }
@@ -180,12 +231,18 @@ class PlaybackActivity : ComponentActivity() {
             currentSteps = prefs.getInt("last_steps", 5)
             currentLang = prefs.getString("last_lang", "en") ?: "en"
             currentIndexState.intValue = prefs.getInt("last_index", 0)
+            currentBookPath = prefs.getString("last_book_path", null)
+            currentChapterHref = prefs.getString("last_chapter_href", null)
+            currentPageIndex = prefs.getInt("last_page_index", -1)
         } else {
             currentText = intent.getStringExtra(EXTRA_TEXT) ?: ""
             currentVoicePath = intent.getStringExtra(EXTRA_VOICE_PATH) ?: ""
             currentSpeed = intent.getFloatExtra(EXTRA_SPEED, 1.0f)
             currentSteps = intent.getIntExtra(EXTRA_STEPS, 5)
             currentLang = intent.getStringExtra(EXTRA_LANG) ?: "en"
+            currentBookPath = intent.getStringExtra(EXTRA_BOOK_PATH)
+            currentChapterHref = intent.getStringExtra(EXTRA_CHAPTER_HREF)
+            currentPageIndex = intent.getIntExtra(EXTRA_PAGE_INDEX, -1)
             
             // Reset state for new playback
             currentIndexState.intValue = -1
@@ -288,6 +345,9 @@ class PlaybackActivity : ComponentActivity() {
                 .putInt("last_steps", currentSteps)
                 .putString("last_lang", currentLang)
                 .putBoolean("is_playing", true)
+                .putString("last_book_path", currentBookPath)
+                .putString("last_chapter_href", currentChapterHref)
+                .putInt("last_page_index", currentPageIndex)
         }
     }
 
@@ -376,5 +436,145 @@ class PlaybackActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleIntent(intent)
+    }
+
+    private fun handlePlaybackCompleted() {
+        val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
+        val autoPlayNext = prefs.getBoolean("pref_auto_play_next", false)
+
+        if (autoPlayNext && !currentBookPath.isNullOrEmpty()) {
+            loadAndPlayNextChapterOrPage()
+        } else {
+            finish()
+        }
+    }
+
+    private fun loadAndPlayNextChapterOrPage() {
+        val bookPath = currentBookPath ?: return
+        val ebookFile = File(bookPath)
+        if (!ebookFile.exists()) {
+            finish()
+            return
+        }
+
+        isLoadingNextState.value = true
+        
+        // Stop current service playback first to be safe
+        try {
+            playbackService?.stop()
+        } catch (_: Exception) {}
+
+        lifecycleScope.launch {
+            val pubResult = ebookParser.openPublication(ebookFile)
+            val publication = pubResult.getOrNull()
+            if (publication == null) {
+                isLoadingNextState.value = false
+                finish()
+                return@launch
+            }
+
+            val conformsToPdf = publication.metadata.conformsTo.contains(org.readium.r2.shared.publication.Publication.Profile.PDF) == true
+            val isPdfMediaType = publication.readingOrder.firstOrNull()?.mediaType?.matches(org.readium.r2.shared.util.mediatype.MediaType.PDF) == true
+            val isPdf = conformsToPdf || isPdfMediaType
+
+            if (isPdf) {
+                val nextPageIndex = currentPageIndex + 1
+                val totalPages = publication.positions().size
+                if (nextPageIndex in 0 until totalPages) {
+                    val extractResult = ebookParser.extractPages(ebookFile, publication, listOf(nextPageIndex))
+                    isLoadingNextState.value = false
+                    extractResult.onSuccess { nextText ->
+                        val preparedText = prepareTextForTts(nextText, currentLang)
+                        currentText = preparedText
+                        currentPageIndex = nextPageIndex
+                        currentChapterHref = null
+                        
+                        // Update intent
+                        intent.putExtra(EXTRA_TEXT, currentText)
+                        intent.putExtra(EXTRA_PAGE_INDEX, currentPageIndex)
+                        intent.removeExtra(EXTRA_CHAPTER_HREF)
+                        
+                        setupList(currentText)
+                        EbookManager.setLastReadChapter(this@PlaybackActivity, bookPath, "page_$nextPageIndex")
+                        
+                        // Wait a tiny bit and start playback
+                        currentIndexState.intValue = 0
+                        playFromIndex(0)
+                    }.onFailure {
+                        Toast.makeText(this@PlaybackActivity, "Failed to load next page: ${it.message}", Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                } else {
+                    isLoadingNextState.value = false
+                    Toast.makeText(this@PlaybackActivity, "End of document reached", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            } else {
+                val toc = publication.tableOfContents
+                val links = toc.ifEmpty { publication.readingOrder }
+                
+                // Helper to flatten
+                fun List<org.readium.r2.shared.publication.Link>.flatten(): List<org.readium.r2.shared.publication.Link> {
+                    val result = mutableListOf<org.readium.r2.shared.publication.Link>()
+                    fun traverse(links: List<org.readium.r2.shared.publication.Link>) {
+                        for (link in links) {
+                            result.add(link)
+                            traverse(link.children)
+                        }
+                    }
+                    traverse(this)
+                    return result
+                }
+                
+                val flatLinks = links.flatten()
+                val currentHref = currentChapterHref
+                val currentIndex = flatLinks.indexOfFirst { it.href.toString() == currentHref }
+
+                if (currentIndex != -1 && currentIndex + 1 < flatLinks.size) {
+                    val nextLink = flatLinks[currentIndex + 1]
+                    val nextHref = nextLink.href.toString()
+                    
+                    val extractResult = ebookParser.extractText(publication, nextLink)
+                    isLoadingNextState.value = false
+                    extractResult.onSuccess { nextText ->
+                        val preparedText = prepareTextForTts(nextText, currentLang)
+                        currentText = preparedText
+                        currentChapterHref = nextHref
+                        currentPageIndex = -1
+                        
+                        // Update intent
+                        intent.putExtra(EXTRA_TEXT, currentText)
+                        intent.putExtra(EXTRA_CHAPTER_HREF, currentChapterHref)
+                        intent.removeExtra(EXTRA_PAGE_INDEX)
+                        
+                        setupList(currentText)
+                        EbookManager.setLastReadChapter(this@PlaybackActivity, bookPath, nextHref)
+                        
+                        currentIndexState.intValue = 0
+                        playFromIndex(0)
+                    }.onFailure {
+                        Toast.makeText(this@PlaybackActivity, "Failed to load next chapter: ${it.message}", Toast.LENGTH_SHORT).show()
+                        finish()
+                    }
+                } else {
+                    isLoadingNextState.value = false
+                    Toast.makeText(this@PlaybackActivity, "End of book reached", Toast.LENGTH_SHORT).show()
+                    finish()
+                }
+            }
+        }
+    }
+
+    private fun prepareTextForTts(text: String?, lang: String): String {
+        if (text.isNullOrEmpty()) return ""
+        val trimmed = text.trim()
+        
+        // Append " ." to prevent diffusion model from cutting off abruptly at the end
+        // RESTRICTED for Korean
+        if (lang.lowercase().startsWith("ko")) {
+            return trimmed
+        }
+        
+        return if (trimmed.endsWith(" .")) trimmed else "$trimmed ."
     }
 }

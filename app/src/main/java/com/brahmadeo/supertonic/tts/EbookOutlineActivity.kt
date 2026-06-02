@@ -53,6 +53,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Switch
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -94,6 +96,7 @@ import kotlin.math.max
 class EbookOutlineActivity : ComponentActivity() {
 
     private lateinit var ebookParser: EbookParser
+    private val lastReadChapterHrefState = mutableStateOf<String?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -124,6 +127,50 @@ class EbookOutlineActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        val ebookPath = intent.getStringExtra(EXTRA_URI)
+        if (ebookPath != null) {
+            lastReadChapterHrefState.value = EbookManager.getLastReadChapter(this, ebookPath)
+        }
+    }
+
+    private fun startDirectPlayback(text: String, bookPath: String, chapterHref: String?, pageIndex: Int = -1) {
+        val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
+        val voiceFile = prefs.getString("selected_voice", "F3.json") ?: "F3.json"
+        val voiceFile2 = prefs.getString("selected_voice_2", "M2.json") ?: "M2.json"
+        val isMixing = prefs.getBoolean("is_mixing_enabled", false)
+        val mixAlpha = prefs.getFloat("mix_alpha", 0.5f)
+        val speed = prefs.getFloat("speed", 1.1f)
+        val steps = prefs.getInt("diffusion_steps", 5)
+        val lang = prefs.getString("selected_lang", "en") ?: "en"
+
+        val modelVersion = com.brahmadeo.supertonic.tts.utils.AssetManager.getModelVersionForLanguage(lang)
+        var stylePath = File(filesDir, "$modelVersion/voice_styles/$voiceFile").absolutePath
+        if (isMixing) {
+            val stylePath2 = File(filesDir, "$modelVersion/voice_styles/$voiceFile2").absolutePath
+            if (File(stylePath2).exists()) {
+                stylePath = "$stylePath;$stylePath2;$mixAlpha"
+            }
+        }
+
+        val intent = Intent(this, PlaybackActivity::class.java).apply {
+            putExtra(PlaybackActivity.EXTRA_TEXT, text)
+            putExtra(PlaybackActivity.EXTRA_VOICE_PATH, stylePath)
+            putExtra(PlaybackActivity.EXTRA_SPEED, speed)
+            putExtra(PlaybackActivity.EXTRA_STEPS, steps)
+            putExtra(PlaybackActivity.EXTRA_LANG, lang)
+            putExtra(PlaybackActivity.EXTRA_BOOK_PATH, bookPath)
+            if (chapterHref != null) {
+                putExtra(PlaybackActivity.EXTRA_CHAPTER_HREF, chapterHref)
+            }
+            if (pageIndex != -1) {
+                putExtra(PlaybackActivity.EXTRA_PAGE_INDEX, pageIndex)
+            }
+        }
+        startActivity(intent)
+    }
+
     @OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
     @Composable
     fun OutlineScreen(
@@ -137,10 +184,9 @@ class EbookOutlineActivity : ComponentActivity() {
         var selectedTabIndex by remember { mutableIntStateOf(0) }
         
         var isPdf by remember { mutableStateOf(ebookFile.extension.lowercase() == "pdf") }
-        var lastReadChapterHref by remember { mutableStateOf<String?>(null) }
+        val lastReadChapterHref = lastReadChapterHrefState.value
 
         LaunchedEffect(ebookFile) {
-            lastReadChapterHref = EbookManager.getLastReadChapter(this@EbookOutlineActivity, ebookFile.absolutePath)
             val result = ebookParser.openPublication(ebookFile)
             publication = result.getOrNull()
             isLoading = false
@@ -188,6 +234,57 @@ class EbookOutlineActivity : ComponentActivity() {
                                 )
                             }
                         }
+
+                        val prefs = remember { getSharedPreferences("SupertonicPrefs", MODE_PRIVATE) }
+                        var directPlayback by remember { mutableStateOf(prefs.getBoolean("pref_direct_playback", true)) }
+                        var autoPlayNext by remember { mutableStateOf(prefs.getBoolean("pref_auto_play_next", false)) }
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .background(MaterialTheme.colorScheme.surface)
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "Direct Play",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = directPlayback,
+                                    onCheckedChange = {
+                                        directPlayback = it
+                                        prefs.edit().putBoolean("pref_direct_playback", it).apply()
+                                    }
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "Auto-Play Next",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Switch(
+                                    checked = autoPlayNext,
+                                    onCheckedChange = {
+                                        autoPlayNext = it
+                                        prefs.edit().putBoolean("pref_auto_play_next", it).apply()
+                                    }
+                                )
+                            }
+                        }
+                        HorizontalDivider()
                     }
                 }
             }
@@ -205,7 +302,7 @@ class EbookOutlineActivity : ComponentActivity() {
                                 onTextExtracted = onTextExtracted,
                                 lastReadChapterHref = lastReadChapterHref,
                                 onLastReadChapterUpdated = { href ->
-                                    lastReadChapterHref = href
+                                    lastReadChapterHrefState.value = href
                                     EbookManager.setLastReadChapter(this@EbookOutlineActivity, ebookFile.absolutePath, href)
                                 },
                                 setExtracting = { isExtracting = it }
@@ -346,6 +443,7 @@ class EbookOutlineActivity : ComponentActivity() {
                 ChapterItem(
                     link = link,
                     publication = publication,
+                    ebookFile = ebookFile,
                     onTextExtracted = onTextExtracted,
                     setExtracting = setExtracting,
                     wordCount = wordCounts[link.href.toString()],
@@ -364,6 +462,7 @@ class EbookOutlineActivity : ComponentActivity() {
     fun ChapterItem(
         link: Link,
         publication: Publication,
+        ebookFile: File,
         onTextExtracted: (String) -> Unit,
         setExtracting: (Boolean) -> Unit,
         wordCount: Int?,
@@ -406,7 +505,12 @@ class EbookOutlineActivity : ComponentActivity() {
                         setExtracting(false)
                         result.onSuccess {
                             onSuccessExtraction()
-                            onTextExtracted(it)
+                            val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
+                            if (prefs.getBoolean("pref_direct_playback", true)) {
+                                startDirectPlayback(it, ebookFile.absolutePath, link.href.toString(), -1)
+                            } else {
+                                onTextExtracted(it)
+                            }
                         }
                         .onFailure { Toast.makeText(this@EbookOutlineActivity, it.message, Toast.LENGTH_SHORT).show() }
                     }
@@ -470,12 +574,20 @@ class EbookOutlineActivity : ComponentActivity() {
                     onClick = {
                         setExtracting(true)
                         multiSelectMode = false
+                        val firstPage = selectedPages.minOrNull() ?: -1
                         lifecycleScope.launch {
                             val result = ebookParser.extractPages(file, publication, selectedPages.toList())
                             setExtracting(false)
                             selectedPages.clear()
-                            result.onSuccess { onTextExtracted(it) }
-                                .onFailure { Toast.makeText(this@EbookOutlineActivity, it.message, Toast.LENGTH_SHORT).show() }
+                            result.onSuccess {
+                                val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
+                                if (prefs.getBoolean("pref_direct_playback", true)) {
+                                    startDirectPlayback(it, file.absolutePath, null, firstPage)
+                                } else {
+                                    onTextExtracted(it)
+                                }
+                            }
+                            .onFailure { Toast.makeText(this@EbookOutlineActivity, it.message, Toast.LENGTH_SHORT).show() }
                         }
                     },
                     modifier = Modifier
@@ -500,8 +612,15 @@ class EbookOutlineActivity : ComponentActivity() {
                     lifecycleScope.launch {
                         val result = ebookParser.extractPages(file, publication, listOf(pageIndexToLoad))
                         setExtracting(false)
-                        result.onSuccess { onTextExtracted(it) }
-                            .onFailure { Toast.makeText(this@EbookOutlineActivity, it.message, Toast.LENGTH_SHORT).show() }
+                        result.onSuccess {
+                            val prefs = getSharedPreferences("SupertonicPrefs", MODE_PRIVATE)
+                            if (prefs.getBoolean("pref_direct_playback", true)) {
+                                startDirectPlayback(it, file.absolutePath, null, pageIndexToLoad)
+                            } else {
+                                onTextExtracted(it)
+                            }
+                        }
+                        .onFailure { Toast.makeText(this@EbookOutlineActivity, it.message, Toast.LENGTH_SHORT).show() }
                     }
                 }
             )
