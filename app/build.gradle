@@ -131,11 +131,13 @@ android {
         applicationId "com.brahmadeo.supertonic.tts"
         minSdk 24
         targetSdk 36
-        versionCode 19
-        versionName "3.2.2"
+        versionCode 20
+        versionName "3.2.3"
 
-        ndk {
-            abiFilters.addAll(getAndroidAbiFilters())
+        if (!isSplitApksEnabled()) {
+            ndk {
+                abiFilters.addAll(getAndroidAbiFilters())
+            }
         }
 
         // Cargo.targets handles the build, and splits handles the packaging.
@@ -219,7 +221,7 @@ dependencies {
     implementation 'androidx.media:media:1.8.0'
 
     // Compose Stack
-    def composeBom = platform('androidx.compose:compose-bom:2026.05.01')
+    def composeBom = platform('androidx.compose:compose-bom:2026.06.01')
     implementation composeBom
     implementation 'androidx.activity:activity-compose:1.13.0'
     implementation 'androidx.compose.ui:ui'
@@ -228,8 +230,8 @@ dependencies {
     implementation 'androidx.compose.material:material-icons-extended'
 
     // ONNX Runtime (double implementation/configuration)
-    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.26.0'
-    onnxRuntime 'com.microsoft.onnxruntime:onnxruntime-android:1.26.0'
+    implementation 'com.microsoft.onnxruntime:onnxruntime-android:1.27.0'
+    onnxRuntime 'com.microsoft.onnxruntime:onnxruntime-android:1.27.0'
 
     // Readium Toolkit
     implementation "org.readium.kotlin-toolkit:readium-shared:$readium_version"
