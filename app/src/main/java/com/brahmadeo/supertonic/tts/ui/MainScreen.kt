@@ -71,6 +71,9 @@ fun MainScreen(
     isAdvancedNormalizationEnabled: Boolean,
     onAdvancedNormalizationEnabledChange: (Boolean) -> Unit,
 
+    sibilanceMode: Int,
+    onSibilanceModeChange: (Int) -> Unit,
+
     onResetClick: () -> Unit,
     onSavedAudioClick: () -> Unit,
     onHistoryClick: () -> Unit,
@@ -352,6 +355,25 @@ fun MainScreen(
                             displayValue = "$steps steps"
                         )
 
+                        val sibilanceOptions = listOf(
+                            stringResource(AppR.string.sibilance_off),
+                            stringResource(AppR.string.sibilance_deesser_recommended),
+                            stringResource(AppR.string.sibilance_high_shelf),
+                            stringResource(AppR.string.sibilance_low_pass),
+                            stringResource(AppR.string.sibilance_deesser_aggressive)
+                        )
+                        DropdownSelector(
+                            label = stringResource(AppR.string.sibilance_reduction_label),
+                            options = sibilanceOptions,
+                            selectedOption = sibilanceOptions.getOrElse(sibilanceMode) { sibilanceOptions[0] },
+                            onOptionSelected = { selected ->
+                                val index = sibilanceOptions.indexOf(selected)
+                                if (index >= 0) {
+                                    onSibilanceModeChange(index)
+                                }
+                            }
+                        )
+
                         if (currentLangCode != "en" && currentLangCode != "ko") {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
@@ -572,6 +594,8 @@ fun MainScreenPreview() {
             onStepsChange = {},
             isAdvancedNormalizationEnabled = false,
             onAdvancedNormalizationEnabledChange = {},
+            sibilanceMode = 1,
+            onSibilanceModeChange = {},
             onResetClick = {},
             onSavedAudioClick = {},
             onHistoryClick = {},
