@@ -124,4 +124,8 @@ Always write tests for the normalization expansions and chunking rules to preven
 ---
 
 ### Credits
-[Supertonic](https://github.com/supertone-inc/supertonic) for creating lightweight and great-sounding TTS models for edge compute.
+* [Supertonic](https://github.com/supertone-inc/supertonic) - For creating lightweight, high-performance, and great-sounding TTS models optimized for edge compute.
+* [Readium Kotlin Toolkit](https://github.com/readium/kotlin-toolkit) (BSD 3-Clause) - For EPUB and PDF parsing, manifest structures, and book rendering navigation.
+* [PdfBox-Android by Tom Roush](https://github.com/TomRoush/PdfBox-Android) (Apache 2.0) - For parsing and extracting text from PDF documents.
+* [jsoup](https://jsoup.org/) (MIT) - For cleaning, parsing, and normalising HTML content.
+* [ONNX Runtime](https://github.com/microsoft/onnxruntime) (MIT) - For running cross-platform neural model inference on device.
