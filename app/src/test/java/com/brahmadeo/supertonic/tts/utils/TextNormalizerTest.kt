@@ -118,6 +118,7 @@ class TextNormalizerTest {
         
         // Decimal
         assertEquals("तिरेपन दशमलव तीन", normalizer.normalize("53.3", "hi"))
+        assertEquals("माइनस शून्य दशमलव तीन", normalizer.normalize("-0.3", "hi"))
         
         // Commas inside numbers
         assertEquals("एक लाख पचास हज़ार", normalizer.normalize("1,50,000", "hi"))
@@ -134,6 +135,127 @@ class TextNormalizerTest {
         
         // Devanagari digits
         assertEquals("तिरेपन दशमलव तीन", normalizer.normalize("५३.३", "hi"))
+    }
+
+    @Test
+    fun testBulgarianNumberNormalization() {
+        val normalizer = TextNormalizer()
+
+        // Integers
+        assertEquals("нула", normalizer.normalize("0", "bg"))
+        assertEquals("три", normalizer.normalize("3", "bg"))
+        assertEquals("двадесет", normalizer.normalize("20", "bg"))
+        assertEquals("двадесет и пет", normalizer.normalize("25", "bg"))
+        assertEquals("сто", normalizer.normalize("100", "bg"))
+        assertEquals("сто и пет", normalizer.normalize("105", "bg"))
+        assertEquals("сто двадесет и пет", normalizer.normalize("125", "bg"))
+        assertEquals("хиляда и пет", normalizer.normalize("1005", "bg"))
+        assertEquals("хиляда сто двадесет и пет", normalizer.normalize("1125", "bg"))
+        assertEquals("един милион", normalizer.normalize("1000000", "bg"))
+        assertEquals("един милион две хиляди и пет", normalizer.normalize("1002005", "bg"))
+        assertEquals("един милион и двадесет и пет хиляди", normalizer.normalize("1025000", "bg"))
+
+        // Decimals (with dot or comma)
+        assertEquals("петдесет и три запетая три", normalizer.normalize("53.3", "bg"))
+        assertEquals("петдесет и три запетая три", normalizer.normalize("53,3", "bg"))
+        assertEquals("минус нула запетая три", normalizer.normalize("-0.3", "bg"))
+
+        // Thousands separator
+        assertEquals("петнадесет хиляди", normalizer.normalize("15.000", "bg"))
+
+        // Percentages
+        assertEquals("един процент", normalizer.normalize("1%", "bg"))
+        assertEquals("два процента", normalizer.normalize("2%", "bg"))
+        assertEquals("пет процента", normalizer.normalize("5%", "bg"))
+        assertEquals("двадесет и един процент", normalizer.normalize("21%", "bg"))
+        assertEquals("двадесет и два процента", normalizer.normalize("22%", "bg"))
+        assertEquals("единадесет процента", normalizer.normalize("11%", "bg"))
+
+        // Ranges
+        assertEquals("десет до петнадесет", normalizer.normalize("10-15", "bg"))
+    }
+
+    @Test
+    fun testGermanNumberNormalization() {
+        val normalizer = TextNormalizer()
+
+        // Integers
+        assertEquals("null", normalizer.normalize("0", "de"))
+        assertEquals("drei", normalizer.normalize("3", "de"))
+        assertEquals("zwanzig", normalizer.normalize("20", "de"))
+        assertEquals("einundzwanzig", normalizer.normalize("21", "de"))
+        assertEquals("fünfundzwanzig", normalizer.normalize("25", "de"))
+        assertEquals("einhundert", normalizer.normalize("100", "de"))
+        assertEquals("einhundertfünf", normalizer.normalize("105", "de"))
+        assertEquals("einhundertfünfundzwanzig", normalizer.normalize("125", "de"))
+        assertEquals("eintausendfünf", normalizer.normalize("1005", "de"))
+        assertEquals("eintausendeinhundertfünfundzwanzig", normalizer.normalize("1125", "de"))
+        assertEquals("eine Million", normalizer.normalize("1000000", "de"))
+        assertEquals("zwei Millionen fünfhunderttausendeinhundertzwanzig", normalizer.normalize("2500120", "de"))
+
+        // Decimals (with dot or comma)
+        assertEquals("dreiundfünfzig Komma drei", normalizer.normalize("53.3", "de"))
+        assertEquals("dreiundfünfzig Komma drei", normalizer.normalize("53,3", "de"))
+        assertEquals("minus null Komma drei", normalizer.normalize("-0.3", "de"))
+        assertEquals("minus null Komma fünf", normalizer.normalize("-0.5", "de"))
+        assertEquals("minus null Komma eins", normalizer.normalize("-0.1", "de"))
+
+        // Thousands separator
+        assertEquals("fünfzehntausend", normalizer.normalize("15.000", "de"))
+
+        // Percentages
+        assertEquals("ein Prozent", normalizer.normalize("1%", "de"))
+        assertEquals("fünf Prozent", normalizer.normalize("5%", "de"))
+        assertEquals("einhundertein Prozent", normalizer.normalize("101%", "de"))
+
+        // Prefix drops
+        assertEquals("einhunderteintausend", normalizer.normalize("101000", "de"))
+
+        // Ranges
+        assertEquals("zehn bis fünfzehn", normalizer.normalize("10-15", "de"))
+    }
+
+    @Test
+    fun testEnglishNumberNormalization() {
+        val normalizer = TextNormalizer()
+        assertEquals("minus zero point three", normalizer.normalize("-0.3", "en"))
+        assertEquals("minus zero point one five", normalizer.normalize("-0.15", "en"))
+    }
+
+    @Test
+    fun testYearAndCenturyNormalization() {
+        val normalizer = TextNormalizer()
+        assertEquals("fifteen hundred", normalizer.normalize("1500", "en"))
+        assertEquals("fifteen oh six", normalizer.normalize("1506", "en"))
+        assertEquals("fifteen fifty six", normalizer.normalize("1556", "en"))
+        assertEquals("sixteen hundred", normalizer.normalize("1600", "en"))
+        assertEquals("sixteen forty two", normalizer.normalize("1642", "en"))
+        assertEquals("seventeen hundred", normalizer.normalize("1700", "en"))
+        assertEquals("seventeen ninety eight", normalizer.normalize("1798", "en"))
+        assertEquals("eighteen hundred", normalizer.normalize("1800", "en"))
+        assertEquals("eighteen oh five", normalizer.normalize("1805", "en"))
+        assertEquals("eighteen forty two", normalizer.normalize("1842", "en"))
+        assertEquals("nineteen hundred", normalizer.normalize("1900", "en"))
+        assertEquals("nineteen oh five", normalizer.normalize("1905", "en"))
+        assertEquals("nineteen ninety nine", normalizer.normalize("1999", "en"))
+        assertEquals("two thousand", normalizer.normalize("2000", "en"))
+        assertEquals("two thousand nine", normalizer.normalize("2009", "en"))
+        assertEquals("twenty twenty four", normalizer.normalize("2024", "en"))
+
+        // Centuries
+        assertEquals("fifteen hundreds", normalizer.normalize("1500s", "en"))
+        assertEquals("eighteen hundreds", normalizer.normalize("1800s", "en"))
+        assertEquals("nineteen hundreds", normalizer.normalize("1900s", "en"))
+        assertEquals("two thousands", normalizer.normalize("2000s", "en"))
+    }
+
+    @Test
+    fun testSoftHyphenStripping() {
+        val normalizer = TextNormalizer()
+        // Unicode soft hyphen is \u00AD. Both words inherently and political contain soft hyphens.
+        val text = "in\u00ADher\u00ADent\u00ADly po\u00ADlit\u00ADi\u00ADcal"
+        val expected = "inherently political"
+        assertEquals(expected, normalizer.normalize(text, "en"))
     }
 
     @Test

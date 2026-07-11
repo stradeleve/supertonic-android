@@ -24,6 +24,12 @@ class TextNormalizer {
         private val CURRENCY_PATTERN = Pattern.compile("(?:\\bINR|₹)\\s*(\\d+(?:\\.\\d+)?)\\b")
         private val PERCENT_PATTERN = Pattern.compile("(\\d+(?:\\.\\d+)?)\\s*%")
 
+        // Bulgarian & German specific patterns
+        private val THOUSANDS_DOT_PATTERN = Pattern.compile("(?<=\\d)\\.(?=\\d{3}(?:\\D|$))")
+        private val DECIMAL_COMMA_PATTERN = Pattern.compile("(?<=\\d),(?=\\d)")
+
+        private val NEGATIVE_SIGN_PATTERN = Pattern.compile("(?<=\\s|^|\\()[-–—−](?=\\d)")
+
         data class Rule(val pattern: Pattern, val replacement: (java.util.regex.Matcher) -> String)
         private val rules: List<Rule> = initializeRules()
 
@@ -153,16 +159,26 @@ class TextNormalizer {
             if (digit == "0") "two thousand" else "two thousand $digit"
         }
 
-        // Rule: 1900-1909
-        addLambda("\\b190(\\d)\\b") { m ->
-            val digit = m.group(1) ?: "0"
-            if (digit == "0") "nineteen hundred" else "nineteen oh $digit"
+        // Rule: 1500-1909
+        addLambda("\\b(1[5-9])0(\\d)\\b") { m ->
+            val century = m.group(1)?.toLongOrNull() ?: 19L
+            val centuryStr = NumberUtils.convert(century)
+            val digit = m.group(2) ?: "0"
+            if (digit == "0") "$centuryStr hundred" else "$centuryStr oh $digit"
         }
 
-        // YEARS (Split 4 digit years starting with 19 or 20)
-        addLambda("\\b(19|20)(\\d{2})\\b(?!s)") { m ->
+        // YEARS (Split 4 digit years starting with 15-20)
+        addLambda("\\b(1[5-9]|20)(\\d{2})\\b(?!s)") { m ->
             "${m.group(1)} ${m.group(2)}"
         }
+
+        // CENTURIES (e.g. 1800s -> eighteen hundreds)
+        addLambda("\\b(1[5-9])00s\\b") { m ->
+            val century = m.group(1)?.toLongOrNull() ?: 19L
+            val centuryStr = NumberUtils.convert(century)
+            "$centuryStr hundreds"
+        }
+        addStr("\\b2000s\\b", "two thousands")
 
         // TITLES
         addLambda("\\b(Prof|Dr|Mr|Mrs|Ms)\\.\\s+") { m ->
@@ -227,15 +243,26 @@ class TextNormalizer {
     fun normalize(text: String, lang: String = "en", isAdvancedEnabled: Boolean = false): String {
         val lowerLang = lang.lowercase()
         
+        // Remove soft hyphens (\u00AD) globally
+        val cleanText = text.replace("\u00AD", "")
+        
         // 1. Lexicon applies to all languages except Korean
         val processedText = if (lowerLang != "ko") {
-            LexiconManager.apply(text)
+            LexiconManager.apply(cleanText)
         } else {
-            text
+            cleanText
         }
 
         if (lowerLang.startsWith("hi")) {
             return normalizeHindi(processedText)
+        }
+
+        if (lowerLang.startsWith("bg")) {
+            return normalizeBulgarian(processedText)
+        }
+
+        if (lowerLang.startsWith("de")) {
+            return normalizeGerman(processedText)
         }
 
         // 2. Determine if we should apply English-style normalization rules
@@ -247,9 +274,12 @@ class TextNormalizer {
             return processedText
         }
 
+        // Clean up negative signs: "-5" -> "minus 5"
+        val negativeNormalizedText = NEGATIVE_SIGN_PATTERN.matcher(processedText).replaceAll("minus ")
+
         // Normalize names like McDonald, MacDonald, FitzGerald to Mcdonald, Macdonald, Fitzgerald
         // to prevent them from being split by SMUSHED_WORD_PATTERN_1 and to ensure correct pronunciation.
-        val preparedText = NAME_PREFIX_REGEX.replace(processedText) { matchResult ->
+        val preparedText = NAME_PREFIX_REGEX.replace(negativeNormalizedText) { matchResult ->
             matchResult.groupValues[1] + matchResult.groupValues[2][0].lowercaseChar()
         }
 
@@ -311,8 +341,11 @@ class TextNormalizer {
     }
 
     private fun normalizeHindi(text: String): String {
+        // 0. Clean up negative signs
+        var normalized = NEGATIVE_SIGN_PATTERN.matcher(text).replaceAll("माइनस ")
+
         // 1. Convert Devanagari digits (०-९) to Latin digits (0-9)
-        var normalized = convertDevanagariDigits(text)
+        normalized = convertDevanagariDigits(normalized)
 
         // 2. Clean up commas in numbers (e.g. "1,50,000" -> "150000")
         normalized = COMMA_PATTERN.matcher(normalized).replaceAll("")
@@ -390,5 +423,142 @@ class TextNormalizer {
             sb.append(replaced)
         }
         return sb.toString()
+    }
+
+    private fun normalizeBulgarian(text: String): String {
+        // 0. Clean up negative signs
+        var normalized = NEGATIVE_SIGN_PATTERN.matcher(text).replaceAll("минус ")
+
+        // 1. Clean up thousands dot separators
+        normalized = THOUSANDS_DOT_PATTERN.matcher(normalized).replaceAll("")
+
+        // 2. Clean up decimal commas
+        normalized = DECIMAL_COMMA_PATTERN.matcher(normalized).replaceAll(".")
+
+        // 3. Range normalization: "10-15" -> "10 до 15"
+        val rangeMatcher = RANGE_PATTERN.matcher(normalized)
+        val rangeSb = StringBuffer()
+        while (rangeMatcher.find()) {
+            val replacement = "${rangeMatcher.group(1)} до ${rangeMatcher.group(2)}"
+            rangeMatcher.appendReplacement(rangeSb, replacement)
+        }
+        rangeMatcher.appendTail(rangeSb)
+        normalized = rangeSb.toString()
+
+        // 4. Percentages: "5%" -> "5 процента", "21%" -> "21 процент"
+        val percentMatcher = PERCENT_PATTERN.matcher(normalized)
+        val percentSb = StringBuffer()
+        while (percentMatcher.find()) {
+            val amountStr = percentMatcher.group(1) ?: ""
+            val amount = amountStr.toDoubleOrNull() ?: 0.0
+            val amountLong = amount.toLong()
+            val isInt = amount == amountLong.toDouble()
+            val suffix = if (isInt && amountLong % 10L == 1L && amountLong % 100L != 11L) {
+                "процент"
+            } else {
+                "процента"
+            }
+            val word = if (isInt) {
+                NumberUtils.convertBulgarian(amountLong)
+            } else {
+                NumberUtils.convertBulgarianDouble(amount)
+            }
+            val adjustedWord = if (suffix == "процент") {
+                if (word == "едно") "един"
+                else if (word.endsWith(" едно")) word.substring(0, word.length - 4) + "един"
+                else word
+            } else {
+                if (word == "две") "два"
+                else if (word.endsWith(" две")) word.substring(0, word.length - 3) + "два"
+                else word
+            }
+            val replacement = "$adjustedWord $suffix"
+            percentMatcher.appendReplacement(percentSb, replacement)
+        }
+        percentMatcher.appendTail(percentSb)
+        normalized = percentSb.toString()
+
+        // 5. Convert remaining numbers to words
+        val numberMatcher = NUMBER_PATTERN.matcher(normalized)
+        val sb = StringBuffer()
+        while (numberMatcher.find()) {
+            val numStr = numberMatcher.group(1) ?: ""
+            try {
+                val replacement = if (numStr.contains(".")) {
+                    NumberUtils.convertBulgarianDouble(numStr.toDouble())
+                } else {
+                    NumberUtils.convertBulgarian(numStr.toLong())
+                }
+                numberMatcher.appendReplacement(sb, replacement)
+            } catch (_: Exception) {
+                numberMatcher.appendReplacement(sb, numStr)
+            }
+        }
+        numberMatcher.appendTail(sb)
+        normalized = sb.toString()
+
+        return normalized
+    }
+
+    private fun normalizeGerman(text: String): String {
+        // 0. Clean up negative signs
+        var normalized = NEGATIVE_SIGN_PATTERN.matcher(text).replaceAll("minus ")
+
+        // 1. Clean up thousands dot separators
+        normalized = THOUSANDS_DOT_PATTERN.matcher(normalized).replaceAll("")
+
+        // 2. Clean up decimal commas
+        normalized = DECIMAL_COMMA_PATTERN.matcher(normalized).replaceAll(".")
+
+        // 3. Range normalization: "10-15" -> "10 bis 15"
+        val rangeMatcher = RANGE_PATTERN.matcher(normalized)
+        val rangeSb = StringBuffer()
+        while (rangeMatcher.find()) {
+            val replacement = "${rangeMatcher.group(1)} bis ${rangeMatcher.group(2)}"
+            rangeMatcher.appendReplacement(rangeSb, replacement)
+        }
+        rangeMatcher.appendTail(rangeSb)
+        normalized = rangeSb.toString()
+
+        // 4. Percentages: "5%" -> "5 Prozent"
+        val percentMatcher = PERCENT_PATTERN.matcher(normalized)
+        val percentSb = StringBuffer()
+        while (percentMatcher.find()) {
+            val amountStr = percentMatcher.group(1) ?: ""
+            val amount = amountStr.toDoubleOrNull() ?: 0.0
+            val amountLong = amount.toLong()
+            val isInt = amount == amountLong.toDouble()
+            val word = if (isInt) {
+                NumberUtils.convertGerman(amountLong)
+            } else {
+                NumberUtils.convertGermanDouble(amount)
+            }
+            val adjustedWord = if (word.endsWith("eins")) word.dropLast(1) else word
+            val replacement = "$adjustedWord Prozent"
+            percentMatcher.appendReplacement(percentSb, replacement)
+        }
+        percentMatcher.appendTail(percentSb)
+        normalized = percentSb.toString()
+
+        // 5. Convert remaining numbers to words
+        val numberMatcher = NUMBER_PATTERN.matcher(normalized)
+        val sb = StringBuffer()
+        while (numberMatcher.find()) {
+            val numStr = numberMatcher.group(1) ?: ""
+            try {
+                val replacement = if (numStr.contains(".")) {
+                    NumberUtils.convertGermanDouble(numStr.toDouble())
+                } else {
+                    NumberUtils.convertGerman(numStr.toLong())
+                }
+                numberMatcher.appendReplacement(sb, replacement)
+            } catch (_: Exception) {
+                numberMatcher.appendReplacement(sb, numStr)
+            }
+        }
+        numberMatcher.appendTail(sb)
+        normalized = sb.toString()
+
+        return normalized
     }
 }
