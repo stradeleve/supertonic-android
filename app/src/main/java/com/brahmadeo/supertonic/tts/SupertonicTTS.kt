@@ -40,7 +40,7 @@ object SupertonicTTS {
     }
 
     @Synchronized
-    fun initialize(modelPath: String, libPath: String, ortThreads: Int = 4, xnnThreads: Int = 1): Boolean {
+    fun initialize(modelPath: String, libPath: String, ortThreads: Int = 2, xnnThreads: Int = 1): Boolean {
         if (nativePtr != 0L) {
             // Health check: Can we still talk to the engine?
             if (getSocClass(nativePtr) != -1) {
@@ -377,4 +377,3 @@ object SupertonicTTS {
         return chunked.joinToString("\u001E")
     }
 }
-
