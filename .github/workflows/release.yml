@@ -85,7 +85,7 @@ jobs:
           echo "build_bundle=${BUILD_BUNDLE}" >> $GITHUB_OUTPUT
 
       - name: Build Release APK (arm64 only)
-        run: ./gradlew assembleRelease -PrustTargets=arm64
+        run: ./gradlew assembleDebug -PrustTargets=arm64
 
       - name: Build Release Bundle (all targets)
         if: steps.determine_bundle.outputs.build_bundle == 'true'
