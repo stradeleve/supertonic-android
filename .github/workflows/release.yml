@@ -1,4 +1,4 @@
-name: Android Release
+Name: Android Release
 
 on:
   push:
@@ -84,37 +84,12 @@ jobs:
           fi
           echo "build_bundle=${BUILD_BUNDLE}" >> $GITHUB_OUTPUT
 
-      - name: Build Release APK (arm64 only)
-        run: ./gradlew assembleRelease -PrustTargets=arm64
+      - name: Build Debug APK (arm64 only)
+        run: ./gradlew assembleDebug -PrustTargets=arm64
 
-      - name: Build Release Bundle (all targets)
+      - name: Build Debug Bundle (all targets)
         if: steps.determine_bundle.outputs.build_bundle == 'true'
-        run: ./gradlew bundleRelease
-
-      - name: Sign APK
-        id: sign_apk
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "35.0.0"
-
-      - name: Sign Bundle
-        if: steps.determine_bundle.outputs.build_bundle == 'true'
-        id: sign_bundle
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/bundle/release
-          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
-          alias: ${{ secrets.KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
-        env:
-          BUILD_TOOLS_VERSION: "35.0.0"
+        run: ./gradlew bundleDebug
 
       - name: Clean Ref Name
         id: clean_ref
@@ -122,11 +97,11 @@ jobs:
           CLEAN_NAME=$(echo "${{ github.ref_name }}" | tr '/' '-')
           echo "clean_ref_name=${CLEAN_NAME}" >> $GITHUB_OUTPUT
 
-      - name: Rename Signed Assets
+      - name: Rename Debug Assets
         run: |
-          mv ${{ steps.sign_apk.outputs.signedReleaseFile }} app/build/outputs/apk/release/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.apk
+          mv app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/debug/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.apk
           if [[ "${{ steps.determine_bundle.outputs.build_bundle }}" == "true" ]]; then
-            mv ${{ steps.sign_bundle.outputs.signedReleaseFile }} app/build/outputs/bundle/release/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.aab
+            mv app/build/outputs/bundle/debug/app-debug.aab app/build/outputs/bundle/debug/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.aab
           fi
 
       - name: Upload Test Artifacts
@@ -134,8 +109,8 @@ jobs:
         with:
           name: Supertonic-Build-${{ steps.clean_ref.outputs.clean_ref_name }}
           path: |
-            app/build/outputs/apk/release/*.apk
-            app/build/outputs/bundle/release/*.aab
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/bundle/debug/*.aab
           if-no-files-found: ignore
 
       - name: Upload Release Assets
@@ -143,6 +118,6 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         with:
           files: |
-            app/build/outputs/apk/release/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.apk
-            app/build/outputs/bundle/release/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.aab
+            app/build/outputs/apk/debug/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.apk
+            app/build/outputs/bundle/debug/Supertonic-${{ steps.clean_ref.outputs.clean_ref_name }}.aab
           fail_on_unmatched_files: false
